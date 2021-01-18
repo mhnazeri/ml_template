@@ -19,8 +19,8 @@ def get_conf(name: str):
     """
     cfg = OmegaConf.load(f"{name}.yaml")
     return cfg
-        
-        
+
+
 def check_grad_norm(net: nn.Module):
     """Compute and return the grad norm of all parameters of the network.
     To see gradients flowing in the network or not
@@ -31,8 +31,8 @@ def check_grad_norm(net: nn.Module):
         total_norm += param_norm.item() ** 2
     total_norm = total_norm ** (1.0 / 2)
     return total_norm
-    
-    
+
+
 def timeit(fn):
     """A function decorator to calculate the time a funcion needed for completion on GPU.
     returns: the function result and the time taken
@@ -62,7 +62,7 @@ def timeit(fn):
             return result, take
 
     return wrapper_fn
-    
+
 
 def save_checkpoint(state: dict, is_best: bool, save_dir: str, name: str):
     """Saves model and training parameters at checkpoint + 'epoch.pth'. If is_best==True, also saves
@@ -109,7 +109,7 @@ def plot_images(batch: torch.Tensor, title: str):
         title: (str) title of the plot and saved file
     """
     n_samples = batch.size(0)
-    plt.figure(figsize=(n_samples // 2, n_samples //2))
+    plt.figure(figsize=(n_samples // 2, n_samples // 2))
     plt.axis("off")
     plt.title(title)
     plt.imshow(

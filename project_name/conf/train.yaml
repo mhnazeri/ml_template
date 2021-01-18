@@ -1,7 +1,0 @@
-num_epochs: 20
-workers: 2
-batch_size: 25
-ngpu: 0 # number of GPUs
-image_size: 64
-nz: 100 # length of latent vector
-optimizer: "adam"

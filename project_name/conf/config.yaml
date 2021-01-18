@@ -1,0 +1,63 @@
+# Training parameters
+train_params:
+  epochs: 50
+  n_gpu: 0 # number of GPUs, according to PyTorch Lightning it is best set to (4 * num_GPU), it also increases memory usage
+  optimizer: "adam"
+  save_every: 10
+
+# Logger parameters
+logger:
+  type_: "comet_ml"
+  project: "" # project name or workspace
+  name: "" # run name
+  tags: ["exp", "test", "train"]
+  resume: False # (boolean) whether to resume training or not
+  online: True # (boolean) whether to store logs online or not
+  experiment_id: "" # can be retrieved from logger dashboard, available if only resuming
+  log_dir: "./logs" # where to store log data
+
+# Dataloader parameters
+dataloader:
+  num_workers: 2
+  batch_size: 64
+  shuffle: True # whether to shuffle data or not
+  num_workers: 0 # Allowing multi-processing
+  pin_memory: False # directly load datasets as CUDA tensors
+
+# Train dataset parameters
+dataset:
+  dataset: "" #  which dataset to use if there are more than one
+  data_root: "./data/train" # where data resides
+
+# Validation dataset parameters
+val_dataset:
+  dataset: "" #  which dataset to use if there are more than one
+  data_root: "./data/val" # where data resides
+
+# directories
+directory:
+  save: "./checkpoint"
+  load: "./checkpoint/best.pt"
+
+# model parameters
+model:
+  in_features: 3
+  out_features: 13
+
+# Adam parameters if using Adam optimizer
+adam:
+  lr: 1e-3
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-8
+  weight_decay: 0
+  amsgrad: False
+
+# RMSprop parameters if using RMSprop optimizer
+rmsprop:
+  lr: 1e-3
+  momentum: 0
+  alpha: 0.99
+  eps: 1e-8
+  centered: False
+  weight_decay: 0

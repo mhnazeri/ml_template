@@ -1,3 +1,0 @@
-save: ./checkpoint
-log: ./logs
-train_data: ./data
