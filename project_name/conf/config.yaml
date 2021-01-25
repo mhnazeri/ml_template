@@ -4,6 +4,7 @@ train_params:
   n_gpu: 0 # number of GPUs, according to PyTorch Lightning it is best set to (4 * num_GPU), it also increases memory usage
   optimizer: "adam"
   save_every: 10
+  swa_start: 30 # start epoch of stochastic weight averaging
 
 # Logger parameters
 logger:

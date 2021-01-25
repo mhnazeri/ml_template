@@ -1,15 +1,6 @@
-# @author: mhnazeri
 import numpy as np
 from typing import Union, List, Optional, Dict
 import torch
-import wandb
-from comet_ml import (
-    Experiment,
-    ExistingExperiment,
-    OfflineExperiment,
-    ExistingOfflineExperiment,
-)
-from tensorboardX import SummaryWriter
 from omegaconf import DictConfig
 
 
@@ -90,6 +81,12 @@ class CometLogger:
         id: Optional[str] = None,
         log_dir: Optional[str] = None,
     ) -> None:
+        from comet_ml import (
+            Experiment,
+            ExistingExperiment,
+            OfflineExperiment,
+            ExistingOfflineExperiment,
+        )
         if online and resume:
             if id:
                 self.comet = ExistingExperiment(
@@ -467,6 +464,7 @@ class WandbLogger:
         id,
         log_dir,
     ):
+        import wandb # only install wandb if needed
         self.wb = wandb.init(
             project=project, name=name, tags=tags, config=config, resume=resume, id=id
         )
@@ -653,6 +651,7 @@ class WandbLogger:
 
 class TensorboardLogger:
     def __init__(self, log_dir):
+        from tensorboardX import SummaryWriter
         self.tb = SummaryWriter(log_dir)
 
     # def log_metric(self, tag: str, scalar_value, global_step=None, walltime=None, main_tag = "default"):

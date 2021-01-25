@@ -3,6 +3,7 @@ from tqdm import tqdm
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.optim.swa_utils import AveragedModel, SWALR
 from thop import profile, clever_format
 
 from model.net import CustomModel
@@ -18,7 +19,7 @@ from utils import (
 )
 
 
-class Agent:
+class Learner:
     def __init__(self, cfg_dir: str, **kwargs):
         self.cfg = get_conf(cfg_dir)
         self.logger = Logger(config=self.cfg, **cfg.logger)
@@ -37,9 +38,7 @@ class Agent:
         else:
             raise ValueError(f"Unknown optimizer {cfg.train_params.optimizer}")
 
-        self.lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode="min"
-        )
+        self.lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
         self.criterion = None
 
         if self.cfg.logger.resume:
@@ -60,8 +59,11 @@ class Agent:
             self.epoch = 1
             self.best = np.inf
 
+        # stochastic weight averaging
+        self.swa_model = AveragedModel(model)
+        self.swa_scheduler = SWALR(optimizer, swa_lr=0.05)
+
         self.logger.log_model(self.model)
-        self.train()
 
     def train(self):
         while self.epoch <= self.cfg.train_params.epochs:
@@ -90,25 +92,29 @@ class Agent:
                 )
                 self.logger.log_metric(
                     {
-                        "epoch": epoch,
+                        "epoch": self.epoch,
                         "batch": idx,
                         "loss": loss.item(),
                         "GradNorm": grad_norm,
                     }
                 )
 
-            self.lr_scheduler.step(val_loss[1])
+            if self.epoch > self.cfg.train_params.swa_start:
+                self.swa_model.update_parameters(self.model)
+                self.swa_scheduler.step()
+            else:
+                self.lr_scheduler.step()
             # validate on val set
             val_loss, t = self.validate()
             # average loss for an epoch
             e_loss = append(np.mean(running_loss))  # epoch loss
             print(
-                f"Epoch {epoch}, train Loss: {e_loss:.2f} \t Val loss: {val_loss:.2f}"
+                f"Epoch {self.epoch}, train Loss: {e_loss:.2f} \t Val loss: {val_loss:.2f}"
                 f"\t time: {t:.3f} seconds"
             )
             self.logger.log_metric(
                 {
-                    "epoch": epoch,
+                    "epoch": self.epoch,
                     "epoch_loss": e_loss,
                     "val_loss": val_loss,
                     "time": t,
@@ -118,7 +124,7 @@ class Agent:
             if self.epoch % self.cfg.train_params.save_every == 0:
                 checkpoint = {}
                 checkpoint["epoch"] = self.epoch
-                checkpoint["unet"] = self.model.state_dict()
+                checkpoint["unet"] = self.swa_model.state_dict() if self.epoch == self.cfg.train_params.epochs else self.model.state_dict()
                 checkpoint["optimizer"] = self.optimizer.state_dict()
                 checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
 
@@ -133,6 +139,8 @@ class Agent:
                         checkpoint, False, self.cfg.directory.save, str(self.epoch)
                     )
 
+        # Update bn statistics for the swa_model at the end
+        # torch.optim.swa_utils.update_bn(self.data, self.swa_model)
         gc.collect()
         self.epoch += 1
 
@@ -144,7 +152,9 @@ class Agent:
     @torch.no_grad()
     @timeit
     def validate(self):
+
         self.model.eval()
+
         running_loss = []
         for idx, (x, y) in tqdm(enumerate(self.val_data)):
             # move data to device
@@ -152,7 +162,13 @@ class Agent:
             y = y.to(self.device)
 
             # forward, backward
-            out = self.model(x)
+            if self.epoch > self.cfg.train_params.swa_start:
+                # Update bn statistics for the swa_model
+                torch.optim.swa_utils.update_bn(self.data, self.swa_model)
+                out = self.swa_model(x)
+            else:
+                out = self.model(x)
+
             loss = self.criterion(out, y)
             running_loss.append(loss.item())
 
@@ -171,5 +187,5 @@ class Agent:
 
 if __name__ == "__main__":
     cfg_path = Path("./conf/config")
-    aget = Agent(cfg_path)
-    agent.train()
+    learner = Learner(cfg_path)
+    learner.train()
