@@ -87,6 +87,7 @@ class CometLogger:
             OfflineExperiment,
             ExistingOfflineExperiment,
         )
+
         if online and resume:
             if id:
                 self.comet = ExistingExperiment(
@@ -130,23 +131,23 @@ class CometLogger:
         self.comet.add_tags(tags)
         self.comet.log_parameters(config)
 
-    def log_metric(
-        self,
-        name: str,
-        value: Union[float, int, bool, str],
-        step: Optional[int] = None,
-        epoch: Optional[int] = None,
-        include_context: Optional[bool] = True,
-    ):
-        self.comet.log_metric(
-            name=name,
-            value=value,
-            step=step,
-            epoch=epoch,
-            include_context=include_context,
-        )
+    # def log_metric(
+    #     self,
+    #     name: str,
+    #     value: Union[float, int, bool, str],
+    #     step: Optional[int] = None,
+    #     epoch: Optional[int] = None,
+    #     include_context: Optional[bool] = True,
+    # ):
+    #     self.comet.log_metric(
+    #         name=name,
+    #         value=value,
+    #         step=step,
+    #         epoch=epoch,
+    #         include_context=include_context,
+    #     )
 
-    def log_metrics(
+    def log_metric(
         self,
         dic: Dict,
         prefix: Optional = None,
@@ -464,7 +465,8 @@ class WandbLogger:
         id,
         log_dir,
     ):
-        import wandb # only install wandb if needed
+        import wandb  # only install wandb if needed
+
         self.wb = wandb.init(
             project=project, name=name, tags=tags, config=config, resume=resume, id=id
         )
@@ -652,6 +654,7 @@ class WandbLogger:
 class TensorboardLogger:
     def __init__(self, log_dir):
         from tensorboardX import SummaryWriter
+
         self.tb = SummaryWriter(log_dir)
 
     # def log_metric(self, tag: str, scalar_value, global_step=None, walltime=None, main_tag = "default"):

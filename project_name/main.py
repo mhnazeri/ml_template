@@ -16,6 +16,7 @@ from utils import (
     load_checkpoint,
     timeit,
     init_weights_normal,
+    EarlyStopping,
 )
 
 
@@ -58,6 +59,14 @@ class Learner:
         else:
             self.epoch = 1
             self.best = np.inf
+
+        # initialize the early_stopping object
+        self.early_stopping = EarlyStopping(
+            patience=cfg.train_params.patience,
+            verbose=True,
+            path=cfg.directory.load,
+            delta=cfg.train_params.early_stopping_delta,
+        )
 
         # stochastic weight averaging
         self.swa_model = AveragedModel(model)
@@ -121,10 +130,22 @@ class Learner:
                 }
             )
 
+            # early_stopping needs the validation loss to check if it has decresed,
+            # and if it has, it will make a checkpoint of the current model
+            self.early_stopping(val_loss, self.model)
+
+            if self.early_stopping.early_stop:
+                print("Early stopping")
+                break
+
             if self.epoch % self.cfg.train_params.save_every == 0:
                 checkpoint = {}
                 checkpoint["epoch"] = self.epoch
-                checkpoint["unet"] = self.swa_model.state_dict() if self.epoch == self.cfg.train_params.epochs else self.model.state_dict()
+                checkpoint["unet"] = (
+                    self.swa_model.state_dict()
+                    if self.epoch == self.cfg.train_params.epochs
+                    else self.model.state_dict()
+                )
                 checkpoint["optimizer"] = self.optimizer.state_dict()
                 checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
 

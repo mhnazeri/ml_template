@@ -5,6 +5,8 @@ train_params:
   optimizer: "adam"
   save_every: 10
   swa_start: 30 # start epoch of stochastic weight averaging
+  patience: 3 # how many epochs we want to wait after the last time the validation loss improved before breaking the training loop
+  early_stopping_delta: 0
 
 # Logger parameters
 logger:
