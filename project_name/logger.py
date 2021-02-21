@@ -1,5 +1,7 @@
+from pathlib import Path
+
 import numpy as np
-from typing import Union, List, Optional, Dict
+from typing import Union, List, Optional, Dict, Tuple, NoReturn
 import torch
 from omegaconf import DictConfig
 
@@ -131,23 +133,23 @@ class CometLogger:
         self.comet.add_tags(tags)
         self.comet.log_parameters(config)
 
-    # def log_metric(
-    #     self,
-    #     name: str,
-    #     value: Union[float, int, bool, str],
-    #     step: Optional[int] = None,
-    #     epoch: Optional[int] = None,
-    #     include_context: Optional[bool] = True,
-    # ):
-    #     self.comet.log_metric(
-    #         name=name,
-    #         value=value,
-    #         step=step,
-    #         epoch=epoch,
-    #         include_context=include_context,
-    #     )
-
     def log_metric(
+        self,
+        name: str,
+        value: Union[float, int, bool, str],
+        step: Optional[int] = None,
+        epoch: Optional[int] = None,
+        include_context: Optional[bool] = True,
+    ):
+        self.comet.log_metric(
+            name=name,
+            value=value,
+            step=step,
+            epoch=epoch,
+            include_context=include_context,
+        )
+
+    def log_metrics(
         self,
         dic: Dict,
         prefix: Optional = None,
@@ -189,10 +191,10 @@ class CometLogger:
             ground_truth: (torch.Tensor) ground-truth masks
             class_labels: (Dict) a dictionary assigning an index to each class
         """
-        assert len(img.size()) == 4  # img should a batch of images
+        assert len(imgs.size()) == 4  # img should a batch of images
         data = {}
 
-        for idx, img in enumerate(imgs):
+        for img_id, img in enumerate(imgs):
             data[img_id].append(
                 {
                     "input": img.cpu().detach().numpy(),
@@ -472,7 +474,7 @@ class WandbLogger:
         )
         self.wb.run.dir = log_dir
 
-    def log_metric(self, metric: dict):
+    def log_metrics(self, metric: dict):
         self.wb.log(metric)
 
     def log_image(self, tag: str, img: np.array, caption: str):
@@ -537,7 +539,7 @@ class WandbLogger:
 
     def log_video(self, tag, video: Union[np.array, Path]):
         self.wb.log(
-            {tag: wandb.Video(numpy_array_or_path_to_video, fps=4, format="gif")}
+            {tag: wandb.Video(video, fps=4, format="gif")}
         )
 
     def log_pr_curve(
@@ -657,10 +659,10 @@ class TensorboardLogger:
 
         self.tb = SummaryWriter(log_dir)
 
-    # def log_metric(self, tag: str, scalar_value, global_step=None, walltime=None, main_tag = "default"):
-    #     self.tb.add_scalar(tag=tag, scalar_value=scalar_value, global_step=global_step, walltime=walltime, main_tag=main_tag)
+    def log_metric(self, tag: str, scalar_value, global_step=None, walltime=None, main_tag = "default"):
+        self.tb.add_scalar(tag=tag, scalar_value=scalar_value, global_step=global_step, walltime=walltime, main_tag=main_tag)
 
-    def log_metric(
+    def log_metrics(
         self, main_tag: str, tag_scalar_dict, global_step=None, walltime=None
     ):
         self.tb.add_scalar(
@@ -781,11 +783,11 @@ class TensorboardLogger:
     def log_html(self, tag, file_path: str, inject: bool = False):
         raise NotImplementedError
 
-    def log_line():
+    def log_line(self):
         raise NotImplementedError
 
-    def log_bar():
+    def log_bar(self):
         raise NotImplementedError
 
-    def log_scatter():
+    def log_scatter(self):
         raise NotImplementedError

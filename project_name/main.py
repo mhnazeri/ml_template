@@ -1,3 +1,6 @@
+import gc
+from pathlib import Path
+
 import numpy as np
 from tqdm import tqdm
 import torch
@@ -7,7 +10,7 @@ from torch.optim.swa_utils import AveragedModel, SWALR
 from thop import profile, clever_format
 
 from model.net import CustomModel
-from model.data_loader import CustomDataset
+from model.data_loader import CustomDataset, CustomDatasetVal
 from logger import Logger
 from utils import (
     get_conf,
@@ -17,44 +20,45 @@ from utils import (
     timeit,
     init_weights_normal,
     EarlyStopping,
+    op_counter
 )
 
 
 class Learner:
     def __init__(self, cfg_dir: str, **kwargs):
         self.cfg = get_conf(cfg_dir)
-        self.logger = Logger(config=self.cfg, **cfg.logger)
-        dataset = CustomDataset(**cfg.dataset)
-        self.data = DataLoader(dataset, **cfg.dataloader)
-        val_dataset = CustomDatasetVal(**cfg.val_dataset)
-        self.val_data = DataLoader(val_dataset, **cfg.dataloader)
-        self.model = CustomModel(**cfg.model)
+        self.logger = Logger(config=self.cfg, **self.cfg.logger)
+        dataset = CustomDataset(**self.cfg.dataset)
+        self.data = DataLoader(dataset, **self.cfg.dataloader)
+        val_dataset = CustomDatasetVal(**self.cfg.val_dataset)
+        self.val_data = DataLoader(val_dataset, **self.cfg.dataloader)
+        self.model = CustomModel(**self.cfg.model)
         self.model.apply(init_weights_normal)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model = self.model.to(device)
-        if cfg.train_params.optimizer.lower() == "adam":
-            self.optimizer = optim.Adam(self.model.parameters(), **cfg.adam)
-        elif cfg.train_params.optimizer.lower() == "rmsprop":
-            self.optimizer = optim.RMSprop(self.model.parameters(), **cfg.rmsprop)
+        self.model = self.model.to(self.device)
+        if self.cfg.train_params.optimizer.lower() == "adam":
+            self.optimizer = optim.Adam(self.model.parameters(), **self.cfg.adam)
+        elif self.cfg.train_params.optimizer.lower() == "rmsprop":
+            self.optimizer = optim.RMSprop(self.model.parameters(), **self.cfg.rmsprop)
         else:
-            raise ValueError(f"Unknown optimizer {cfg.train_params.optimizer}")
+            raise ValueError(f"Unknown optimizer {self.cfg.train_params.optimizer}")
 
-        self.lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+        self.lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=100)
         self.criterion = None
 
         if self.cfg.logger.resume:
             # load checkpoint
             print("Loading checkpoint")
-            save_dir = cfg.directory.load
-            checkpoint = load_checkpoint(save_dir, device)
+            save_dir = self.cfg.directory.load
+            checkpoint = load_checkpoint(save_dir, self.device)
             self.model.load_state_dict(checkpoint["model"])
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
             self.epoch = checkpoint["epoch"]
             self.best = checkpoint["best"]
             print(
-                f"Loading checkpoint was successful, start from epoch {epoch}"
-                f" and loss {best}"
+                f"Loading checkpoint was successful, start from epoch {self.epoch}"
+                f" and loss {self.best}"
             )
         else:
             self.epoch = 1
@@ -62,15 +66,15 @@ class Learner:
 
         # initialize the early_stopping object
         self.early_stopping = EarlyStopping(
-            patience=cfg.train_params.patience,
+            patience=self.cfg.train_params.patience,
             verbose=True,
-            path=cfg.directory.load,
-            delta=cfg.train_params.early_stopping_delta,
+            path=self.cfg.directory.load,
+            delta=self.cfg.train_params.early_stopping_delta,
         )
 
         # stochastic weight averaging
-        self.swa_model = AveragedModel(model)
-        self.swa_scheduler = SWALR(optimizer, swa_lr=0.05)
+        self.swa_model = AveragedModel(self.model)
+        self.swa_scheduler = SWALR(self.optimizer, swa_lr=0.05)
 
         self.logger.log_model(self.model)
 
@@ -99,7 +103,7 @@ class Learner:
                     f"Batch {idx}, train loss: {loss.item():.2f}"
                     f"\t Grad_Norm: {grad_norm:.2f}"
                 )
-                self.logger.log_metric(
+                self.logger.log_metrics(
                     {
                         "epoch": self.epoch,
                         "batch": idx,
@@ -116,12 +120,12 @@ class Learner:
             # validate on val set
             val_loss, t = self.validate()
             # average loss for an epoch
-            e_loss = append(np.mean(running_loss))  # epoch loss
+            e_loss = np.mean(running_loss)  # epoch loss
             print(
                 f"Epoch {self.epoch}, train Loss: {e_loss:.2f} \t Val loss: {val_loss:.2f}"
                 f"\t time: {t:.3f} seconds"
             )
-            self.logger.log_metric(
+            self.logger.log_metrics(
                 {
                     "epoch": self.epoch,
                     "epoch_loss": e_loss,
@@ -130,7 +134,7 @@ class Learner:
                 }
             )
 
-            # early_stopping needs the validation loss to check if it has decresed,
+            # early_stopping needs the validation loss to check if it has decreased,
             # and if it has, it will make a checkpoint of the current model
             self.early_stopping(val_loss, self.model)
 
@@ -139,19 +143,19 @@ class Learner:
                 break
 
             if self.epoch % self.cfg.train_params.save_every == 0:
-                checkpoint = {}
-                checkpoint["epoch"] = self.epoch
-                checkpoint["unet"] = (
-                    self.swa_model.state_dict()
-                    if self.epoch == self.cfg.train_params.epochs
-                    else self.model.state_dict()
-                )
-                checkpoint["optimizer"] = self.optimizer.state_dict()
-                checkpoint["lr_scheduler"] = self.lr_scheduler.state_dict()
+                checkpoint = {"epoch": self.epoch,
+                              "unet": (
+                                  self.swa_model.state_dict()
+                                  if self.epoch == self.cfg.train_params.epochs
+                                  else self.model.state_dict()
+                              ),
+                              "optimizer": self.optimizer.state_dict(),
+                              "lr_scheduler": self.lr_scheduler.state_dict()
+                              }
 
-                if val_loss < best:
-                    best = val_loss
-                    checkpoint["best"] = best
+                if val_loss < self.best:
+                    self.best = val_loss
+                    checkpoint["best"] = self.best
                     save_checkpoint(
                         checkpoint, True, self.cfg.directory.save, str(self.epoch)
                     )
@@ -167,7 +171,7 @@ class Learner:
 
         macs, params = op_counter(self.model)
         print(macs, params)
-        self.logger.log_metric({"GFLOPS": macs[:-1], "#Params": params[:-1]})
+        self.logger.log_metrics({"GFLOPS": macs[:-1], "#Params": params[:-1]})
         print("ALL Finished!")
 
     @torch.no_grad()
@@ -197,13 +201,6 @@ class Learner:
         loss = np.mean(running_loss)
 
         return loss
-
-    def op_counter(self):
-        self.model.eval()
-        _input = torch.randn(1, 3, 256, 256).to(self.device)  # generate a random input
-        macs, params = profile(self.model, inputs=(_input,))
-        macs, params = clever_format([macs, params], "%.3f")
-        return macs, params
 
 
 if __name__ == "__main__":
