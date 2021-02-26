@@ -1,7 +1,7 @@
 # Training parameters
 train_params:
   epochs: 50
-  n_gpu: 0 # number of GPUs, according to PyTorch Lightning it is best set to (4 * num_GPU), it also increases memory usage
+  cuda: False # whether to use GPU or not
   optimizer: "adam"
   save_every: 10
   swa_start: 30 # start epoch of stochastic weight averaging
@@ -10,10 +10,8 @@ train_params:
 
 # Logger parameters
 logger:
-  type_: "comet_ml"
-  project: "" # project name or workspace
-  name: "" # run name
-  tags: ["exp", "test", "train"]
+  project: "" # project name
+  tags: "exp test train"
   resume: False # (boolean) whether to resume training or not
   online: True # (boolean) whether to store logs online or not
   experiment_id: "" # can be retrieved from logger dashboard, available if only resuming
@@ -21,10 +19,9 @@ logger:
 
 # Dataloader parameters
 dataloader:
-  num_workers: 2
+  num_workers: 2 # Allowing multi-processing
   batch_size: 64
   shuffle: True # whether to shuffle data or not
-  num_workers: 0 # Allowing multi-processing
   pin_memory: False # directly load datasets as CUDA tensors
 
 # Train dataset parameters
@@ -39,8 +36,9 @@ val_dataset:
 
 # directories
 directory:
+  model_name: "model-name" # file name for saved model
   save: "./checkpoint"
-  load: "./checkpoint/best.pt"
+  load: "./checkpoint/model-name-best.pt"
 
 # model parameters
 model:
@@ -50,8 +48,9 @@ model:
 # Adam parameters if using Adam optimizer
 adam:
   lr: 1e-3
-  beta1: 0.9
-  beta2: 0.999
+  betas:
+    - 0.9
+    - 0.999
   eps: 1e-8
   weight_decay: 0
   amsgrad: False
@@ -64,3 +63,9 @@ rmsprop:
   eps: 1e-8
   centered: False
   weight_decay: 0
+
+# Stochastic Weight Averaging parameters
+SWA:
+  anneal_strategy: "linear"
+  anneal_epochs: 5
+  swa_lr: 0.05
