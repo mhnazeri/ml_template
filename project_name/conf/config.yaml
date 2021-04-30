@@ -1,7 +1,7 @@
 # Training parameters
 train_params:
   epochs: 50
-  cuda: False # whether to use GPU or not
+  device: "cpu" # device name, values: "cpu" or "cuda:x" where 'x' is gpu index
   optimizer: "adam"
   save_every: 10
   swa_start: 30 # start epoch of stochastic weight averaging
@@ -16,6 +16,7 @@ logger:
   online: True # (boolean) whether to store logs online or not
   experiment_id: "" # can be retrieved from logger dashboard, available if only resuming
   log_dir: "./logs" # where to store log data
+  disabled: False # disable the comet ml
 
 # Dataloader parameters
 dataloader:

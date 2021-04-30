@@ -1,25 +1,7 @@
-import os
-from time import time
-import shutil
-import functools
-
+"""Utils for nn module"""
 import numpy as np
-import matplotlib.pyplot as plt
-import torch
 import torch.nn as nn
-import torchvision.utils as vutils
-from omegaconf import OmegaConf
 from thop import profile, clever_format
-
-
-def get_conf(name: str):
-    """Returns yaml config file in DictConfig format
-
-    Args:
-        name: (str) name of the yaml file without .yaml extension
-    """
-    cfg = OmegaConf.load(f"{name}.yaml")
-    return cfg
 
 
 def check_grad_norm(net: nn.Module):
@@ -34,91 +16,34 @@ def check_grad_norm(net: nn.Module):
     return total_norm
 
 
-def timeit(fn):
-    """A function decorator to calculate the time a funcion needed for completion on GPU.
-    returns: the function result and the time taken
-    """
-    # first, check if cuda is available
-    cuda = True if torch.cuda.is_available() else False
-    if cuda:
-
-        @functools.wraps(fn)
-        def wrapper_fn(*args, **kwargs):
-            torch.cuda.synchronize()
-            t1 = time()
-            result = fn(*args, **kwargs)
-            torch.cuda.synchronize()
-            t2 = time()
-            take = t2 - t1
-            return result, take
-
-    else:
-
-        @functools.wraps(fn)
-        def wrapper_fn(*args, **kwargs):
-            t1 = time()
-            result = fn(*args, **kwargs)
-            t2 = time()
-            take = t2 - t1
-            return result, take
-
-    return wrapper_fn
-
-
-def save_checkpoint(state: dict, is_best: bool, save_dir: str, name: str):
-    """Saves model and training parameters.
-
-    Saves model and training parameters at checkpoint + 'epoch.pth'. If is_best==True, also saves
-    checkpoint + 'best.pth'
+def freeze(model: nn.Module, exclude: List, verbose: bool = False) -> nn.Module:
+    """Freezes the layers of the model except the exclusion layer list.
 
     Args:
-        state: (dict) contains model's state_dict, may contain other keys such as epoch, optimizer state_dict
-        is_best: (bool) True if it is the best model seen till now
-        save_dir: (str) the location where to save the checkpoint
-        name: (str) file name to be written
+        model: (nn.Module) The model itself.
+        exclude: (List) The list of layers name the you want to keep unfrozen.
+        verbose: (bool) Show statistics of the model parameters.
+
+    Returns:
+        model: (nn.Module) returns the frozen model.
     """
-    filepath = os.path.join(save_dir, f"{name}.pth")
-    if not os.path.exists(save_dir):
-        print(
-            "Checkpoint Directory does not exist! Making directory {}".format(save_dir)
-        )
-        os.mkdir(save_dir)
-    else:
-        print(f"Checkpoint Directory exists! Saving {name} in {save_dir}")
-    torch.save(state, filepath)
-    if is_best:
-        shutil.copyfile(filepath, os.path.join(save_dir, f"{name}-best.pth"))
+    frozen_layers_list = []
+    frozen_params_list = [len(p) for p in model.parameters() if p.requires_grad]
+    if verbose:
+        print(f"The model has {len([p for p in model.parameters()])} layers.")
+        print(f"Before freezing the model had {sum(frozen_params_list)} parameters.")
 
+    for name, child in model.named_parameters():
+        if not any(layer in name for layer in exclude):
+            frozen_layers_list.append(name)
+            child.requires_grad_(False)
 
-def load_checkpoint(save: str, device: str):
-    """Loads model parameters (state_dict) from file_path.
+    frozen_params_list = [len(p) for p in model.parameters() if p.requires_grad]
+    if verbose:
+        print(f"{len(frozen_layers_list)} layers have been frozen.")
+        print(f"After freezing the model has {sum(frozen_params_list)} parameters.")
 
-    Args:
-        save: (str) directory of the saved checkpoint
-        device: (str) map location
-    """
-    if not os.path.exists(save):
-        raise ("File doesn't exist {}".format(save))
-    checkpoint = torch.load(save, map_location=device)
-
-    return checkpoint
-
-
-def plot_images(batch: torch.Tensor, title: str):
-    """Plot a batch of images
-
-    Args:
-        batch: (torch.Tensor) a batch of images with dimensions (batch, channels, height, width)
-        title: (str) title of the plot and saved file
-    """
-    n_samples = batch.size(0)
-    plt.figure(figsize=(n_samples // 2, n_samples // 2))
-    plt.axis("off")
-    plt.title(title)
-    plt.imshow(
-        np.transpose(vutils.make_grid(batch, padding=2, normalize=True), (1, 2, 0))
-    )
-    plt.savefig(f"{title}.png")
+    return model
 
 
 def init_weights_normal(m: nn.Module, mean: float = 0.0, std: float = 0.5):
