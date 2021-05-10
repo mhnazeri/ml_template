@@ -46,54 +46,64 @@ def freeze(model: nn.Module, exclude: List, verbose: bool = False) -> nn.Module:
     return model
 
 
-def init_weights_normal(m: nn.Module, mean: float = 0.0, std: float = 0.5):
-    """Initialize the network's weights based on normal distribution
+@torch.no_grad()
+def init_weights(
+    m: nn.Module,
+    method: str = "kaiming_normal",
+    mean: float = 0.0,
+    std: float = 0.5,
+    low: float = 0.0,
+    high: float = 1.0,
+    mode: str = "fan_in",
+    nonlinearity: str = "leaky_relu",
+    gain: float = 1.0,
+):
+    """Initialize the network's weights based on the provided method
 
     Args:
-        m: (nn.Module) network itself
+        m: (nn.Module) module itself
+        method: (str) how to initialize the weights
         mean: (float) mean of normal distribution
         std: (float) standard deviation for normal distribution
-    """
-    classname = m.__class__.__name__
-    if classname.find("Conv") != -1:
-        nn.init.normal_(m.weight.data, mean=mean, std=std)
-    elif classname.find("BatchNorm") != -1:
-        nn.init.normal_(m.weight.data, mean=mean, std=std)
-        nn.init.constant_(m.bias.data, 0)
-    elif classname.find("Linear") != -1:
-        nn.init.normal_(m.weight.data, mean=mean, std=std)
-        nn.init.constant_(m.bias.data, 0)
-
-
-def init_weights_uniform(m: nn.Module, low: float = 0.0, high: float = 1.0):
-    """Initialize the network's weights based on uniform distribution
-
-    Args:
         low: (float) minimum threshold for uniform distribution
         high: (float) maximum threshold for uniform distribution
+        mode: (str) either 'fan_in' (default) or 'fan_out'. Choosing 'fan_in' preserves the magnitude of the variance of the weights in the forward pass. Choosing 'fan_out' preserves the magnitudes in the backwards pass.
+        nonlinearity: (str) the non-linear function (nn.functional name), recommended to use only with 'relu' or 'leaky_relu' (default).
+        gain: (float) an optional scaling factor for xavier initialization
     """
-    classname = m.__class__.__name__
-    if classname.find("Conv") != -1:
-        nn.init.uniform_(m.weight.data, a=low, b=high)
-    elif classname.find("BatchNorm") != -1:
-        nn.init.uniform_(m.weight.data, a=low, b=high)
-        nn.init.constant_(m.bias.data, 0)
-    elif classname.find("Linear") != -1:
-        nn.init.uniform_(m.weight.data, a=low, b=high)
-        nn.init.constant_(m.bias.data, 0)
-
-
-def init_weights_xavier_normal(m: nn.Module):
-    """Initialize the network's weights based on xaviar normal distribution"""
-    classname = m.__class__.__name__
-    if classname.find("Conv") != -1:
-        nn.init.xavier_normal_(m.weight.data)
-    elif classname.find("BatchNorm") != -1:
-        nn.init.xavier_normal_(m.weight.data)
-        nn.init.constant_(m.bias.data, 0)
-    elif classname.find("Linear") != -1:
-        nn.init.xavier_normal_(m.weight.data)
-        nn.init.constant_(m.bias.data, 0)
+    if any([
+        isinstance(m, nn.Conv1d),
+        isinstance(m, nn.Conv2d),
+        isinstance(m, nn.Conv3d),
+        isinstance(m, nn.BatchNorm1d),
+        isinstance(m, nn.BatchNorm2d),
+        isinstance(m, nn.BatchNorm3d),
+        isinstance(m, nn.Linear),
+    ]):
+        if method == "kaiming_normal":
+            nn.init.kaiming_normal_(m.weights, mode=mode, nonlinearity=nonlinearity)
+            if m.bias:
+                nn.init.constant_(m.bias, 0)
+        elif method == "kaiming_uniform_":
+            nn.init.kaiming_uniform_(m.weights, mode=mode, nonlinearity=nonlinearity)
+            if m.bias:
+                nn.init.constant_(m.bias, 0)
+        elif method == "normal":
+            nn.init.normal_(m.weights, mean=mean, std=std)
+            if m.bias:
+                nn.init.constant_(m.bias, 0)
+        elif method == "uniform":
+            nn.init.uniform_(m.weights, a=low, b=high)
+            if m.bias:
+                nn.init.constant_(m.bias, 0)
+        elif method == "xavier_normal":
+            nn.init.xavier_normal_(m.weights, gain=gain)
+            if m.bias:
+                nn.init.constant_(m.bias, 0)
+        elif method == "xavier_uniform":
+            nn.init.xavier_uniform_(m.weights, gain=gain)
+            if m.bias:
+                nn.init.constant_(m.bias, 0)
 
 
 def op_counter(model, sample):

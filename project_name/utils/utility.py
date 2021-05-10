@@ -47,30 +47,3 @@ def timeit(fn):
             return result, take
 
     return wrapper_fn
-
-
-class_labels = {
-    0: "Unlabeled",
-    1: "Building",
-    2: "Fence",
-    3: "Other",
-    4: "Pedestrian",
-    5: "Pole",
-    6: "RoadLine",
-    7: "Road",
-    8: "SideWalk",
-    9: "Vegetation",
-    10: "Vehicles",
-    11: "Wall",
-    12: "TrafficSign",
-    13: "Sky",
-    14: "Ground",
-    15: "Bridge",
-    16: "RailTrack",
-    17: "GuardRail",
-    18: "TrafficLight",
-    19: "Static",
-    20: "Dynamic",
-    21: "water",
-    22: "terrain",
-}

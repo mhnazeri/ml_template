@@ -2,6 +2,7 @@ import gc
 from pathlib import Path
 from datetime import datetime
 import sys
+
 try:
     sys.path.append(str(Path(".").resolve()))
 except:
@@ -17,25 +18,30 @@ from torch.optim.swa_utils import AveragedModel, SWALR
 
 from model.net import CustomModel
 from model.data_loader import CustomDataset, CustomDatasetVal
-from utils.nn import check_grad_norm, init_weights_normal, EarlyStopping, op_counter
-from utils.io import save_checkpoint, load_checkpoint,
+from utils.nn import check_grad_norm, init_weights, EarlyStopping, op_counter
+from utils.io import save_checkpoint, load_checkpoint
 from utils.utility import get_conf, timeit
 
 
 class Learner:
     def __init__(self, cfg_dir: str):
+        # load config file and initialize the logger
         self.cfg = get_conf(cfg_dir)
         self.logger = self.init_logger(self.cfg.logger)
+        # creating dataset interface and dataloader
         self.dataset = CustomDataset(**self.cfg.dataset)
         self.data = DataLoader(self.dataset, **self.cfg.dataloader)
         self.val_dataset = CustomDatasetVal(**self.cfg.val_dataset)
         self.val_data = DataLoader(self.val_dataset, **self.cfg.dataloader)
-        self.logger.log_parameters({"tr_len": len(self.dataset),
-                                    "val_len": len(self.val_dataset)})
+        self.logger.log_parameters(
+            {"tr_len": len(self.dataset), "val_len": len(self.val_dataset)}
+        )
+        # create model and initialize its weights and move them to the device
         self.model = CustomModel(**self.cfg.model)
-        self.model.apply(init_weights_normal)
+        self.model.apply(init_weights(**self.cfg.init_model))
         self.device = self.cfg.train_params.device
         self.model = self.model.to(device=self.device)
+        # initialize the optimizer
         if self.cfg.train_params.optimizer.lower() == "adam":
             self.optimizer = optim.Adam(self.model.parameters(), **self.cfg.adam)
         elif self.cfg.train_params.optimizer.lower() == "rmsprop":
@@ -43,9 +49,12 @@ class Learner:
         else:
             raise ValueError(f"Unknown optimizer {self.cfg.train_params.optimizer}")
 
-        self.lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=100)
-        self.criterion = None
-
+        # initialize the learning rate scheduler and define loss fucntion
+        self.lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=self.cfg.train_params.optimizer
+        )
+        self.criterion = torch.nn.L1Loss()
+        # if resuming, load the checkpoint
         if self.cfg.logger.resume:
             # load checkpoint
             print("Loading checkpoint")
@@ -56,6 +65,7 @@ class Learner:
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
             self.epoch = checkpoint["epoch"]
             self.e_loss = checkpoint["e_loss"]
+            self.iteration = checkpoint["iteration"]
             self.best = checkpoint["best"]
             print(
                 f"{datetime.now():%Y-%m-%d %H:%M:%S} "
@@ -64,6 +74,7 @@ class Learner:
             )
         else:
             self.epoch = 1
+            self.iteration = 0
             self.best = np.inf
             self.e_loss = []
 
@@ -71,7 +82,6 @@ class Learner:
         self.early_stopping = EarlyStopping(
             patience=self.cfg.train_params.patience,
             verbose=True,
-            path=self.cfg.directory.load,
             delta=self.cfg.train_params.early_stopping_delta,
         )
 
@@ -80,13 +90,21 @@ class Learner:
         self.swa_scheduler = SWALR(self.optimizer, **self.cfg.SWA)
 
     def train(self):
+        """Trains the model"""
+        # a variable to print the start of SWA
+        print_swa_start = True
+
         while self.epoch <= self.cfg.train_params.epochs:
             running_loss = []
             self.model.train()
-            
-            bar = tqdm(enumerate(self.data), desc=f"Epoch {self.epoch}/{self.cfg.train_params.epochs}")
+            self.logger.set_epoch(self.epoch)
+
+            bar = tqdm(
+                enumerate(self.data),
+                desc=f"Epoch {self.epoch}/{self.cfg.train_params.epochs}",
+            )
             for idx, (x, y) in bar:
-                self.optimizer.zero_grad()
+                self.iteration += 1
                 # move data to device
                 x = x.to(device=self.device)
                 y = y.to(device=self.device)
@@ -94,7 +112,13 @@ class Learner:
                 # forward, backward
                 out = self.model(x)
                 loss = self.criterion(out, y)
+                self.optimizer.zero_grad()
                 loss.backward()
+                # gradient clipping
+                if self.cfg.train_params.grad_clipping > 0:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), self.cfg.train_params.grad_clipping
+                    )
                 # check grad norm for debugging
                 grad_norm = check_grad_norm(self.model)
                 # update
@@ -102,22 +126,25 @@ class Learner:
 
                 running_loss.append(loss.item())
 
-                bar.set_postfix(
-                    loss=loss.item(),
-                    Grad_Norm=grad_norm
-                )
+                bar.set_postfix(loss=loss.item(), Grad_Norm=grad_norm)
 
                 self.logger.log_metrics(
                     {
-                        "epoch": self.epoch,
-                        "batch": idx,
-                        "loss": loss.item(),
-                        "GradNorm": grad_norm,
-                    }
+                        "batch_loss": loss.item(),
+                        "grad_norm": grad_norm,
+                    },
+                    epoch=self.epoch,
+                    step=self.iteration,
                 )
 
             bar.close()
+            # update SWA model parameters
             if self.epoch > self.cfg.train_params.swa_start:
+                if print_swa_start:
+                    print(f"Epoch {self.epoch}, starting SWA!")
+                    # print only once
+                    print_swa_start = False
+
                 self.swa_model.update_parameters(self.model)
                 self.swa_scheduler.step()
             else:
@@ -130,24 +157,25 @@ class Learner:
             # average loss for an epoch
             self.e_loss.append(np.mean(running_loss))  # epoch loss
             print(
-                f"{datetime.now():%Y-%m-%d %H:%M:%S} Epoch {self.epoch} summary: train Loss: {self.e_loss[-1]:.2f} \t| Val loss: {val_loss:.2f}"
+                f"{datetime.now():%Y-%m-%d %H:%M:%S} Epoch {self.epoch}, Iteration {self.iteration} summary: train Loss: {self.e_loss[-1]:.2f} \t| Val loss: {val_loss:.2f}"
                 f"\t| time: {t:.3f} seconds"
             )
 
             self.logger.log_metrics(
                 {
-                    "epoch": self.epoch,
-                    "epoch_loss": self.e_loss[-1],
+                    "train_loss": self.e_loss[-1],
                     "val_loss": val_loss,
                     "time": t,
-                }
+                },
+                epoch=self.epoch,
+                step=self.iteration,
             )
 
             # early_stopping needs the validation loss to check if it has decreased,
             # and if it has, it will make a checkpoint of the current model
             self.early_stopping(val_loss, self.model)
 
-            if self.early_stopping.early_stop:
+            if self.early_stopping.early_stop and self.cfg.train_params.early_stopping:
                 print("Early stopping")
                 self.save()
                 break
@@ -160,8 +188,18 @@ class Learner:
 
         # Update bn statistics for the swa_model at the end
         if self.epoch >= self.cfg.train_params.swa_start:
+            # if the first element of sample is the tensor that network should be applied to
+            # if this is not the case, comment line below, and uncomment for loop below
             torch.optim.swa_utils.update_bn(self.data, self.swa_model)
-            self.save(name=self.cfg.directory.model_name + "-final" + str(self.epoch) + "-swa")
+            # otherwise, just run a forward pass of every sample in dataset through swa model
+            # uncomment the for loop below
+            # for x, y in self.data:
+            #     x = x.to(device=self.device)
+            #     self.swa_model(x)
+
+            self.save(
+                name=self.cfg.directory.model_name + "-final" + str(self.epoch) + "-swa"
+            )
 
         macs, params = op_counter(self.model, sample=x)
         print(macs, params)
@@ -204,7 +242,7 @@ class Learner:
 
         # First, let's see if we continue or start fresh:
         CONTINUE_RUN = cfg.resume
-        if (EXPERIMENT_KEY is not None):
+        if EXPERIMENT_KEY is not None:
             # There is one, but the experiment might not exist yet:
             api = comet_ml.API()  # Assumes API key is set in config/env
             try:
@@ -229,7 +267,7 @@ class Learner:
                 log_env_cpu=True,  # to continue CPU logging
                 auto_histogram_weight_logging=True,
                 auto_histogram_gradient_logging=True,
-                auto_histogram_activation_logging=True
+                auto_histogram_activation_logging=True,
             )
             # Retrieved from above APIExperiment
             # self.logger.set_epoch(epoch)
@@ -240,47 +278,55 @@ class Learner:
             #    Otherwise, you could manually set it here. If you don't
             #    set COMET_EXPERIMENT_KEY, the experiment will get a
             #    random key!
-            logger = comet_ml.Experiment(
-                disabled=cfg.disabled,
-                project_name=cfg.project,
-                auto_histogram_weight_logging=True,
-                auto_histogram_gradient_logging=True,
-                auto_histogram_activation_logging=True
-            )
-            logger.add_tags(cfg.tags.split())
-            logger.log_parameters(self.cfg)
+            if cfg.online:
+                logger = comet_ml.Experiment(
+                    disabled=cfg.disabled,
+                    project_name=cfg.project,
+                    auto_histogram_weight_logging=True,
+                    auto_histogram_gradient_logging=True,
+                    auto_histogram_activation_logging=True,
+                )
+                logger.add_tags(cfg.tags.split())
+                logger.log_parameters(self.cfg)
+            else:
+                logger = comet_ml.OfflineExperiment(
+                    disabled=cfg.disabled,
+                    project_name=cfg.project,
+                    offline_directory=cfg.offline_directory,
+                    auto_weight_logging=True,
+                )
+                logger.add_tags(cfg.tags.split())
+                logger.log_parameters(self.cfg)
 
         return logger
 
     def save(self, name=None):
-        checkpoint = {"epoch": self.epoch,
-                      "model": self.model.state_dict(),
-                      "optimizer": self.optimizer.state_dict(),
-                      "lr_scheduler": self.lr_scheduler.state_dict(),
-                      "best": self.best,
-                      "e_loss": self.e_loss
-                      }
+        checkpoint = {
+            "epoch": self.epoch,
+            "iteration": self.iteration,
+            "model": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "lr_scheduler": self.lr_scheduler.state_dict(),
+            "best": self.best,
+            "e_loss": self.e_loss,
+        }
 
         if name is None and self.epoch >= self.cfg.train_params.swa_start:
             save_name = self.cfg.directory.model_name + str(self.epoch) + "-swa"
-            checkpoint['model-swa'] = self.swa_model.state_dict()
+            checkpoint["model-swa"] = self.swa_model.state_dict()
 
         elif name is None:
             save_name = self.cfg.directory.model_name + str(self.epoch)
-            
+
         else:
             save_name = name
 
         if self.e_loss[-1] < self.best:
             self.best = self.e_loss[-1]
             checkpoint["best"] = self.best
-            save_checkpoint(
-                checkpoint, True, self.cfg.directory.save, save_name
-            )
+            save_checkpoint(checkpoint, True, self.cfg.directory.save, save_name)
         else:
-            save_checkpoint(
-                checkpoint, False, self.cfg.directory.save, save_name
-            )
+            save_checkpoint(checkpoint, False, self.cfg.directory.save, save_name)
 
 
 if __name__ == "__main__":
