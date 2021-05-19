@@ -9,10 +9,12 @@ train_params:
   early_stopping_delta: 0
   grad_clipping: 1.0 # set to zero to disable grad clipping
   early_stopping: False # whether to stop early or not
+  start_saving_best: 10 # start epoch of saving best model
 
 # Logger parameters
 logger:
   project: "" # project name
+  experiment_name: experiment_34" # name of the experiment
   tags: "exp test train"
   resume: False # (boolean) whether to resume training or not
   online: True # (boolean) whether to store logs online or not

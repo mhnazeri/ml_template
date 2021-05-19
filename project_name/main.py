@@ -141,7 +141,7 @@ class Learner:
             # update SWA model parameters
             if self.epoch > self.cfg.train_params.swa_start:
                 if print_swa_start:
-                    print(f"Epoch {self.epoch}, starting SWA!")
+                    print(f"Epoch {self.epoch}, step {self.iteration}, starting SWA!")
                     # print only once
                     print_swa_start = False
 
@@ -180,7 +180,10 @@ class Learner:
                 self.save()
                 break
 
-            if self.epoch % self.cfg.train_params.save_every == 0:
+            if self.epoch % self.cfg.train_params.save_every == 0 or (
+                self.e_loss[-1] < self.best
+                and self.epoch % self.cfg.train_params.start_saving_best == 0
+            ):
                 self.save()
 
             gc.collect()
@@ -189,7 +192,7 @@ class Learner:
         # Update bn statistics for the swa_model at the end
         if self.epoch >= self.cfg.train_params.swa_start:
             # if the first element of sample is the tensor that network should be applied to
-            # if this is not the case, comment line below, and uncomment for loop below
+            # otherwise, comment the line below, and uncomment the for loop
             torch.optim.swa_utils.update_bn(self.data, self.swa_model)
             # otherwise, just run a forward pass of every sample in dataset through swa model
             # uncomment the for loop below
@@ -242,7 +245,7 @@ class Learner:
 
         # First, let's see if we continue or start fresh:
         CONTINUE_RUN = cfg.resume
-        if EXPERIMENT_KEY is not None:
+        if EXPERIMENT_KEY and CONTINUE_RUN:
             # There is one, but the experiment might not exist yet:
             api = comet_ml.API()  # Assumes API key is set in config/env
             try:
@@ -295,6 +298,7 @@ class Learner:
                     offline_directory=cfg.offline_directory,
                     auto_weight_logging=True,
                 )
+                logger.set_name(cfg.experiment_name)
                 logger.add_tags(cfg.tags.split())
                 logger.log_parameters(self.cfg)
 
