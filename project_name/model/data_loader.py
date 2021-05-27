@@ -1,4 +1,4 @@
-from torch.data.utils import Dataset
+from torch.utils.data import Dataset
 
 
 class CustomDataset(Dataset):

@@ -20,7 +20,7 @@ logger:
   online: True # (boolean) whether to store logs online or not
   experiment_id: "" # can be retrieved from logger dashboard, available if only resuming
   offline_directory: "./logs" # where to store log data
-  disabled: False # disable the comet ml
+  disabled: True # disable the comet ml
 
 # Dataloader parameters
 dataloader:
@@ -52,7 +52,7 @@ model:
 
 # model initializer
 init_model:
-  method: "kaiming_normal" # kaiming_normal, kaiming_uniform, normal, uniform, xavier_normal, xavier_uniform
+  method: "uniform" # kaiming_normal, kaiming_uniform, normal, uniform, xavier_normal, xavier_uniform
   mean: 0.0 # mean of normal distribution
   std: 0.5 # standard deviation for normal distribution
   low: 0.0 # minimum threshold for uniform distribution

@@ -100,10 +100,10 @@ class Learner:
             self.logger.set_epoch(self.epoch)
 
             bar = tqdm(
-                enumerate(self.data),
+                self.data,
                 desc=f"Epoch {self.epoch}/{self.cfg.train_params.epochs}",
             )
-            for idx, (x, y) in bar:
+            for x, y in bar:
                 self.iteration += 1
                 # move data to device
                 x = x.to(device=self.device)
@@ -157,7 +157,9 @@ class Learner:
             # average loss for an epoch
             self.e_loss.append(np.mean(running_loss))  # epoch loss
             print(
-                f"{datetime.now():%Y-%m-%d %H:%M:%S} Epoch {self.epoch}, Iteration {self.iteration} summary: train Loss: {self.e_loss[-1]:.2f} \t| Val loss: {val_loss:.2f}"
+                f"{datetime.now():%Y-%m-%d %H:%M:%S} Epoch {self.epoch}, " +
+                f"Iteration {self.iteration} summary: train Loss: " +
+                f"{self.e_loss[-1]:.2f} \t| Val loss: {val_loss:.2f}" +
                 f"\t| time: {t:.3f} seconds"
             )
 

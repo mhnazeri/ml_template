@@ -1,5 +1,7 @@
 """Utils for nn module"""
+from typing import List
 import numpy as np
+import torch
 import torch.nn as nn
 from thop import profile, clever_format
 
@@ -48,7 +50,6 @@ def freeze(model: nn.Module, exclude: List, verbose: bool = False) -> nn.Module:
 
 @torch.no_grad()
 def init_weights(
-    m: nn.Module,
     method: str = "kaiming_normal",
     mean: float = 0.0,
     std: float = 0.5,
@@ -71,39 +72,121 @@ def init_weights(
         nonlinearity: (str) the non-linear function (nn.functional name), recommended to use only with 'relu' or 'leaky_relu' (default).
         gain: (float) an optional scaling factor for xavier initialization
     """
-    if any([
-        isinstance(m, nn.Conv1d),
-        isinstance(m, nn.Conv2d),
-        isinstance(m, nn.Conv3d),
-        isinstance(m, nn.BatchNorm1d),
-        isinstance(m, nn.BatchNorm2d),
-        isinstance(m, nn.BatchNorm3d),
-        isinstance(m, nn.Linear),
-    ]):
-        if method == "kaiming_normal":
-            nn.init.kaiming_normal_(m.weights, mode=mode, nonlinearity=nonlinearity)
-            if m.bias:
-                nn.init.constant_(m.bias, 0)
-        elif method == "kaiming_uniform_":
-            nn.init.kaiming_uniform_(m.weights, mode=mode, nonlinearity=nonlinearity)
-            if m.bias:
-                nn.init.constant_(m.bias, 0)
-        elif method == "normal":
-            nn.init.normal_(m.weights, mean=mean, std=std)
-            if m.bias:
-                nn.init.constant_(m.bias, 0)
-        elif method == "uniform":
-            nn.init.uniform_(m.weights, a=low, b=high)
-            if m.bias:
-                nn.init.constant_(m.bias, 0)
-        elif method == "xavier_normal":
-            nn.init.xavier_normal_(m.weights, gain=gain)
-            if m.bias:
-                nn.init.constant_(m.bias, 0)
-        elif method == "xavier_uniform":
-            nn.init.xavier_uniform_(m.weights, gain=gain)
-            if m.bias:
-                nn.init.constant_(m.bias, 0)
+    if method == "kaiming_normal":
+
+        def init(m):
+            if any(
+                [
+                    isinstance(m, nn.Conv1d),
+                    isinstance(m, nn.Conv2d),
+                    isinstance(m, nn.Conv3d),
+                    isinstance(m, nn.BatchNorm1d),
+                    isinstance(m, nn.BatchNorm2d),
+                    isinstance(m, nn.BatchNorm3d),
+                    isinstance(m, nn.Linear),
+                ]
+            ):
+                nn.init.kaiming_normal_(m.weight, mode=mode, nonlinearity=nonlinearity)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+        return init
+    elif method == "kaiming_uniform_":
+
+        def init(m):
+            if any(
+                [
+                    isinstance(m, nn.Conv1d),
+                    isinstance(m, nn.Conv2d),
+                    isinstance(m, nn.Conv3d),
+                    isinstance(m, nn.BatchNorm1d),
+                    isinstance(m, nn.BatchNorm2d),
+                    isinstance(m, nn.BatchNorm3d),
+                    isinstance(m, nn.Linear),
+                ]
+            ):
+                nn.init.kaiming_uniform_(m.weight, mode=mode, nonlinearity=nonlinearity)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+        return init
+    elif method == "normal":
+
+        def init(m):
+            if any(
+                [
+                    isinstance(m, nn.Conv1d),
+                    isinstance(m, nn.Conv2d),
+                    isinstance(m, nn.Conv3d),
+                    isinstance(m, nn.BatchNorm1d),
+                    isinstance(m, nn.BatchNorm2d),
+                    isinstance(m, nn.BatchNorm3d),
+                    isinstance(m, nn.Linear),
+                ]
+            ):
+
+                nn.init.normal_(m.weight, mean=mean, std=std)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+        return init
+    elif method == "uniform":
+
+        def init(m):
+            if any(
+                [
+                    isinstance(m, nn.Conv1d),
+                    isinstance(m, nn.Conv2d),
+                    isinstance(m, nn.Conv3d),
+                    isinstance(m, nn.BatchNorm1d),
+                    isinstance(m, nn.BatchNorm2d),
+                    isinstance(m, nn.BatchNorm3d),
+                    isinstance(m, nn.Linear),
+                ]
+            ):
+                nn.init.uniform_(m.weight, a=low, b=high)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+        return init
+    elif method == "xavier_normal":
+
+        def init(m):
+            if any(
+                [
+                    isinstance(m, nn.Conv1d),
+                    isinstance(m, nn.Conv2d),
+                    isinstance(m, nn.Conv3d),
+                    isinstance(m, nn.BatchNorm1d),
+                    isinstance(m, nn.BatchNorm2d),
+                    isinstance(m, nn.BatchNorm3d),
+                    isinstance(m, nn.Linear),
+                ]
+            ):
+                nn.init.xavier_normal_(m.weight, gain=gain)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+        return init
+    elif method == "xavier_uniform":
+
+        def init(m):
+            if any(
+                [
+                    isinstance(m, nn.Conv1d),
+                    isinstance(m, nn.Conv2d),
+                    isinstance(m, nn.Conv3d),
+                    isinstance(m, nn.BatchNorm1d),
+                    isinstance(m, nn.BatchNorm2d),
+                    isinstance(m, nn.BatchNorm3d),
+                    isinstance(m, nn.Linear),
+                ]
+            ):
+                nn.init.xavier_uniform_(m.weight, gain=gain)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+        return init
 
 
 def op_counter(model, sample):
@@ -118,9 +201,7 @@ class EarlyStopping:
     Code from https://github.com/Bjarten/early-stopping-pytorch
     """
 
-    def __init__(
-        self, patience=7, verbose=False, delta=0, trace_func=print
-    ):
+    def __init__(self, patience=7, verbose=False, delta=0, trace_func=print):
         """
         Args:
             patience (int): How long to wait after last time validation loss improved.
