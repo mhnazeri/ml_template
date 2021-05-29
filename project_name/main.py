@@ -219,7 +219,7 @@ class Learner:
 
         running_loss = []
 
-        for idx, (x, y) in tqdm(enumerate(self.val_data), desc="Validation"):
+        for x, y in tqdm(self.val_data, desc="Validation"):
             # move data to device
             x = x.to(device=self.device)
             y = y.to(device=self.device)
