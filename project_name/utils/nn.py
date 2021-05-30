@@ -80,9 +80,6 @@ def init_weights(
                     isinstance(m, nn.Conv1d),
                     isinstance(m, nn.Conv2d),
                     isinstance(m, nn.Conv3d),
-                    isinstance(m, nn.BatchNorm1d),
-                    isinstance(m, nn.BatchNorm2d),
-                    isinstance(m, nn.BatchNorm3d),
                     isinstance(m, nn.Linear),
                 ]
             ):
@@ -99,9 +96,6 @@ def init_weights(
                     isinstance(m, nn.Conv1d),
                     isinstance(m, nn.Conv2d),
                     isinstance(m, nn.Conv3d),
-                    isinstance(m, nn.BatchNorm1d),
-                    isinstance(m, nn.BatchNorm2d),
-                    isinstance(m, nn.BatchNorm3d),
                     isinstance(m, nn.Linear),
                 ]
             ):

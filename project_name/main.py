@@ -101,7 +101,7 @@ class Learner:
 
             bar = tqdm(
                 self.data,
-                desc=f"Epoch {self.epoch}/{self.cfg.train_params.epochs}",
+                desc=f"Epoch {self.epoch}/{self.cfg.train_params.epochs}, training: ",
             )
             for x, y in bar:
                 self.iteration += 1
@@ -219,7 +219,7 @@ class Learner:
 
         running_loss = []
 
-        for x, y in tqdm(self.val_data, desc="Validation"):
+        for x, y in tqdm(self.val_data, desc=f"Epoch {self.epoch}/{self.cfg.train_params.epochs}, validating"):
             # move data to device
             x = x.to(device=self.device)
             y = y.to(device=self.device)
