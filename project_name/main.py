@@ -101,7 +101,7 @@ class Learner:
 
             bar = tqdm(
                 self.data,
-                desc=f"Epoch {self.epoch}/{self.cfg.train_params.epochs}, training: ",
+                desc=f"Epoch {self.epoch:03}/{self.cfg.train_params.epochs:03}, training: ",
             )
             for x, y in bar:
                 self.iteration += 1
@@ -141,7 +141,7 @@ class Learner:
             # update SWA model parameters
             if self.epoch > self.cfg.train_params.swa_start:
                 if print_swa_start:
-                    print(f"Epoch {self.epoch}, step {self.iteration}, starting SWA!")
+                    print(f"Epoch {self.epoch:03}, step {self.iteration:05}, starting SWA!")
                     # print only once
                     print_swa_start = False
 
@@ -157,8 +157,8 @@ class Learner:
             # average loss for an epoch
             self.e_loss.append(np.mean(running_loss))  # epoch loss
             print(
-                f"{datetime.now():%Y-%m-%d %H:%M:%S} Epoch {self.epoch}, " +
-                f"Iteration {self.iteration} summary: train Loss: " +
+                f"{datetime.now():%Y-%m-%d %H:%M:%S} Epoch {self.epoch:03}, " +
+                f"Iteration {self.iteration:05} summary: train Loss: " +
                 f"{self.e_loss[-1]:.2f} \t| Val loss: {val_loss:.2f}" +
                 f"\t| time: {t:.3f} seconds"
             )
@@ -178,7 +178,7 @@ class Learner:
             self.early_stopping(val_loss, self.model)
 
             if self.early_stopping.early_stop and self.cfg.train_params.early_stopping:
-                print("Early stopping")
+                print(f"Epoch {self.epoch:03}, Early stopping")
                 self.save()
                 break
 
@@ -219,7 +219,7 @@ class Learner:
 
         running_loss = []
 
-        for x, y in tqdm(self.val_data, desc=f"Epoch {self.epoch}/{self.cfg.train_params.epochs}, validating"):
+        for x, y in tqdm(self.val_data, desc=f"Epoch {self.epoch:03}/{self.cfg.train_params.epochs:03}, validating"):
             # move data to device
             x = x.to(device=self.device)
             y = y.to(device=self.device)

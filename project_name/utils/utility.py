@@ -10,9 +10,10 @@ def get_conf(name: str):
     """Returns yaml config file in DictConfig format
 
     Args:
-        name: (str) name of the yaml file without .yaml extension
+        name: (str) name of the yaml file
     """
-    cfg = OmegaConf.load(f"{name}.yaml")
+    name = name if name.split(".")[-1] == "yaml" else name + ".yaml"
+    cfg = OmegaConf.load(name)
     return cfg
 
 
