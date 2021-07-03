@@ -24,7 +24,7 @@ run () {
       python project_name/main.py
       ;;
     run)
-      python project_name/model/dataloader.py $2
+      python $2
       ;;
     -h) # display Help
       Help
