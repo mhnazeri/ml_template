@@ -7,3 +7,23 @@ Main libraries:
 * [Comet.ml](https://www.comet.ml): tracking code, logging experiments
 * [OmegaConf](https://omegaconf.readthedocs.io/en/latest/): for managing configuration files
 
+## Installation
+First create a virtual env for the project. 
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Then install the latest version of PyTorch from the [official site](pytorch.org/). Finally, run the following:
+```bash
+pip install -r requirements
+```
+To set up Comet.Ml follow the [official documentations](https://www.comet.ml/docs/).
+## What's new
+* (July 3, 2021) Added `run.sh` bash file to easily run different parts of the code.
+* (July 3, 2021) Added UUID generation for sample names.
+* (July 3, 2021) Added MNIST as an example (not SOTA).
+
+## Run
+To run different parts, just edit [run.sh](./run.sh) file and run it using `.` calling.
+

@@ -6,13 +6,14 @@ import torch.nn as nn
 from thop import profile, clever_format
 
 
+@torch.no_grad()
 def check_grad_norm(net: nn.Module):
     """Compute and return the grad norm of all parameters of the network.
     To see gradients flowing in the network or not
     """
     total_norm = 0
     for p in list(filter(lambda p: p.grad is not None, net.parameters())):
-        param_norm = p.grad.data.norm(2)
+        param_norm = p.grad.detach().norm(2)
         total_norm += param_norm.item() ** 2
     total_norm = total_norm ** (1.0 / 2)
     return total_norm

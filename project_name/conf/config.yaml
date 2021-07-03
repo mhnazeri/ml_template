@@ -13,14 +13,14 @@ train_params:
 
 # Logger parameters
 logger:
-  project: "" # project name
+  project: "MNIST-test" # project name
   experiment_name: experiment_34" # name of the experiment
   tags: "exp test train"
   resume: False # (boolean) whether to resume training or not
   online: True # (boolean) whether to store logs online or not
   experiment_id: "" # can be retrieved from logger dashboard, available if only resuming
   offline_directory: "./logs" # where to store log data
-  disabled: True # disable the comet ml
+  disabled: False # disable the comet ml
 
 # Dataloader parameters
 dataloader:
@@ -31,24 +31,25 @@ dataloader:
 
 # Train dataset parameters
 dataset:
-  dataset: "" #  which dataset to use if there are more than one
-  data_root: "./data/train" # where data resides
+  root: "project_name/data" # where data resides
+  train: True # train data
+  download: False # whether to download data or not
+  read_only: 10 # only read this number of samples (useful for testing the pipeline)
 
-# Validation dataset parameters
+# Validation dataset parameters/ only change parameters that are different from train data
 val_dataset:
-  dataset: "" #  which dataset to use if there are more than one
-  data_root: "./data/val" # where data resides
+  train: False # val data
 
 # directories
 directory:
   model_name: "model-name" # file name for saved model
-  save: "./checkpoint"
-  load: "./checkpoint/model-name-best.pt"
+  save: "project_name/checkpoint"
+  load: "project_name/checkpoint/model-name-best.pt"
 
 # model parameters
 model:
-  in_features: 3
-  out_features: 13
+  in_features: 1
+  out_features: 10
 
 # model initializer
 init_model:

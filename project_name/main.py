@@ -2,6 +2,7 @@ import gc
 from pathlib import Path
 from datetime import datetime
 import sys
+import json
 
 try:
     sys.path.append(str(Path(".").resolve()))
@@ -17,7 +18,7 @@ from torch.utils.data import DataLoader
 from torch.optim.swa_utils import AveragedModel, SWALR
 
 from model.net import CustomModel
-from model.data_loader import CustomDataset, CustomDatasetVal
+from model.data_loader import CustomDataset
 from utils.nn import check_grad_norm, init_weights, EarlyStopping, op_counter
 from utils.io import save_checkpoint, load_checkpoint
 from utils.utility import get_conf, timeit
@@ -28,16 +29,22 @@ class Learner:
         # load config file and initialize the logger
         self.cfg = get_conf(cfg_dir)
         self.logger = self.init_logger(self.cfg.logger)
-        # creating dataset interface and dataloader
+        # creating dataset interface and dataloader for traind data
         self.dataset = CustomDataset(**self.cfg.dataset)
         self.data = DataLoader(self.dataset, **self.cfg.dataloader)
-        self.val_dataset = CustomDatasetVal(**self.cfg.val_dataset)
+        # creating dataset interface and dataloader for val data
+        self.cfg.val_dataset.update(self.cfg.dataset)
+        self.val_dataset = CustomDataset(**self.cfg.val_dataset)
+
+        self.cfg.dataloader.update({'shuffle': False})  # for val dataloader
         self.val_data = DataLoader(self.val_dataset, **self.cfg.dataloader)
+        # log dataset status
         self.logger.log_parameters(
-            {"tr_len": len(self.dataset), "val_len": len(self.val_dataset)}
+            {"train_len": len(self.dataset), "val_len": len(self.val_dataset)}
         )
+        self.logger.log_asset_data(json.dumps(dict(self.val_dataset.cache_names)), 'val-data-uuid.json')
         # create model and initialize its weights and move them to the device
-        self.model = CustomModel(**self.cfg.model)
+        self.model = CustomModel(self.cfg.model)
         self.model.apply(init_weights(**self.cfg.init_model))
         self.device = self.cfg.train_params.device
         self.model = self.model.to(device=self.device)
@@ -51,9 +58,9 @@ class Learner:
 
         # initialize the learning rate scheduler and define loss fucntion
         self.lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=self.cfg.train_params.optimizer
+            self.optimizer, T_max=self.cfg.train_params.epochs
         )
-        self.criterion = torch.nn.L1Loss()
+        self.criterion = torch.nn.CrossEntropyLoss()
         # if resuming, load the checkpoint
         if self.cfg.logger.resume:
             # load checkpoint
@@ -103,7 +110,7 @@ class Learner:
                 self.data,
                 desc=f"Epoch {self.epoch:03}/{self.cfg.train_params.epochs:03}, training: ",
             )
-            for x, y in bar:
+            for uid, x, y in bar:
                 self.iteration += 1
                 # move data to device
                 x = x.to(device=self.device)
@@ -195,19 +202,19 @@ class Learner:
         if self.epoch >= self.cfg.train_params.swa_start:
             # if the first element of sample is the tensor that network should be applied to
             # otherwise, comment the line below, and uncomment the for loop
-            torch.optim.swa_utils.update_bn(self.data, self.swa_model)
+            # torch.optim.swa_utils.update_bn(self.data, self.swa_model)
             # otherwise, just run a forward pass of every sample in dataset through swa model
             # uncomment the for loop below
-            # for x, y in self.data:
-            #     x = x.to(device=self.device)
-            #     self.swa_model(x)
+            for uid, x, y in self.data:
+                x = x.to(device=self.device)
+                self.swa_model(x)
 
             self.save(
                 name=self.cfg.directory.model_name + "-final" + str(self.epoch) + "-swa"
             )
 
         macs, params = op_counter(self.model, sample=x)
-        print(macs, params)
+        print("macs = ", macs, "params = ", params)
         self.logger.log_metrics({"GFLOPS": macs[:-1], "#Params": params[:-1]})
         print("Training Finished!")
 
@@ -219,21 +226,21 @@ class Learner:
 
         running_loss = []
 
-        for x, y in tqdm(self.val_data, desc=f"Epoch {self.epoch:03}/{self.cfg.train_params.epochs:03}, validating"):
+        for uid, x, y in tqdm(self.val_data, desc=f"Epoch {self.epoch:03}/{self.cfg.train_params.epochs:03}, validating"):
             # move data to device
             x = x.to(device=self.device)
             y = y.to(device=self.device)
 
-            # forward, backward
+            # forward
             if self.epoch > self.cfg.train_params.swa_start:
-                # Update bn statistics for the swa_model
-                torch.optim.swa_utils.update_bn(self.data, self.swa_model)
                 out = self.swa_model(x)
             else:
                 out = self.model(x)
 
             loss = self.criterion(out, y)
             running_loss.append(loss.item())
+
+        self.logger.log_image(x[0].squeeze(), f"{out[0].argmax().item()}-|{uid[0]}", step=self.iteration)
 
         # average loss
         loss = np.mean(running_loss)
@@ -336,6 +343,6 @@ class Learner:
 
 
 if __name__ == "__main__":
-    cfg_path = "./conf/config"
+    cfg_path = "project_name/conf/config"
     learner = Learner(cfg_path)
     learner.train()
