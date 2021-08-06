@@ -95,7 +95,20 @@ def init_weights(
             ):
                 nn.init.kaiming_normal_(m.weight, mode=mode, nonlinearity=nonlinearity)
                 if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
+                    fan_in, fan_out = \
+                        nn.init._calculate_fan_in_and_fan_out(m.weight)
+                    bound = 1 / (fan_out ** 0.5)
+                    nn.init.normal_(m.bias, -bound, bound)
+
+            # Kaiming_init does not work with Batchnorm
+            elif any(
+                [
+                    isinstance(m, nn.BatchNorm1d),
+                    isinstance(m, nn.BatchNorm2d),
+                    isinstance(m, nn.BatchNorm3d),
+                ]
+            ):
+                nn.init.normal_(m.weight, mean=mean, std=std)
 
         return init
     elif method == "kaiming_uniform_":
@@ -111,7 +124,19 @@ def init_weights(
             ):
                 nn.init.kaiming_uniform_(m.weight, mode=mode, nonlinearity=nonlinearity)
                 if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
+                    fan_in, fan_out = \
+                        nn.init._calculate_fan_in_and_fan_out(m.weight)
+                    bound = 1 / (fan_out ** 0.5)
+                    nn.init.uniform_(m.bias, -bound, bound)
+            # Kaiming_init does not work with Batchnorm
+            elif any(
+                [
+                    isinstance(m, nn.BatchNorm1d),
+                    isinstance(m, nn.BatchNorm2d),
+                    isinstance(m, nn.BatchNorm3d),
+                ]
+            ):
+                nn.init.uniform_(m.weight, mean=mean, std=std)
 
         return init
     elif method == "normal":

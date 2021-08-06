@@ -26,6 +26,7 @@ class CustomDataset(Dataset):
 
     def create_uuid(self, directory: Optional[str] = './cache'):
         """Create UID for samples to get the actual name for later use cases"""
+        print("START caching file names.")
         if osp.exists(directory):
             self.cache_names = Index(directory)
         else:
@@ -36,6 +37,7 @@ class CustomDataset(Dataset):
             # self.cache_names.update({
             #         value: key for key, value in self.cache_names.items()
             #     })
+        print("END caching file names.")
 
     def get_uuid(self, file_name):
         """Works both ways, given filename returns uuid and vice versa"""

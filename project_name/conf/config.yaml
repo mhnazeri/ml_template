@@ -1,7 +1,7 @@
 # Training parameters
 train_params:
-  epochs: 50
-  device: "cpu" # device name, values: "cpu" or "cuda:x" where 'x' is gpu index
+  epochs: 20
+  device: "cpu" # device name, values: "cpu" or "cuda:x" where 'x' is gpu index, or "cuda:a" to use all GPUs
   optimizer: "adam"
   save_every: 10
   swa_start: 30 # start epoch of stochastic weight averaging
@@ -20,7 +20,7 @@ logger:
   online: True # (boolean) whether to store logs online or not
   experiment_id: "" # can be retrieved from logger dashboard, available if only resuming
   offline_directory: "./logs" # where to store log data
-  disabled: False # disable the comet ml
+  disabled: True # disable the comet ml
 
 # Dataloader parameters
 dataloader:
@@ -80,6 +80,14 @@ rmsprop:
   eps: 1e-8
   centered: False
   weight_decay: 0
+
+# SGD parameters if using SGD optimizer
+sgd:
+  lr: 1e-3
+  momentum: 0 # momentum factor
+  weight_decay: 0 # weight decay (L2 penalty)
+  dampening: 0 # dampening for momentum
+  nesterov: False # enables Nesterov momentum
 
 # Stochastic Weight Averaging parameters
 SWA:

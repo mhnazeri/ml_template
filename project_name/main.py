@@ -21,69 +21,25 @@ from model.net import CustomModel
 from model.data_loader import CustomDataset
 from utils.nn import check_grad_norm, init_weights, EarlyStopping, op_counter
 from utils.io import save_checkpoint, load_checkpoint
-from utils.utility import get_conf, timeit
+from utils.helpers import get_conf, timeit
 
 
 class Learner:
     def __init__(self, cfg_dir: str):
-        # load config file and initialize the logger
+        # load config file and initialize the logger and the device
         self.cfg = get_conf(cfg_dir)
         self.logger = self.init_logger(self.cfg.logger)
-        # creating dataset interface and dataloader for traind data
-        self.dataset = CustomDataset(**self.cfg.dataset)
-        self.data = DataLoader(self.dataset, **self.cfg.dataloader)
-        # creating dataset interface and dataloader for val data
-        self.cfg.val_dataset.update(self.cfg.dataset)
-        self.val_dataset = CustomDataset(**self.cfg.val_dataset)
-
-        self.cfg.dataloader.update({'shuffle': False})  # for val dataloader
-        self.val_data = DataLoader(self.val_dataset, **self.cfg.dataloader)
-        # log dataset status
-        self.logger.log_parameters(
-            {"train_len": len(self.dataset), "val_len": len(self.val_dataset)}
-        )
-        self.logger.log_asset_data(json.dumps(dict(self.val_dataset.cache_names)), 'val-data-uuid.json')
+        self.device = self.init_device()
+        # creating dataset interface and dataloader for trained data
+        self.data, self.val_data = self.init_dataloader()
         # create model and initialize its weights and move them to the device
-        self.model = CustomModel(self.cfg.model)
-        self.model.apply(init_weights(**self.cfg.init_model))
-        self.device = self.cfg.train_params.device
-        self.model = self.model.to(device=self.device)
+        self.model = self.init_model()
         # initialize the optimizer
-        if self.cfg.train_params.optimizer.lower() == "adam":
-            self.optimizer = optim.Adam(self.model.parameters(), **self.cfg.adam)
-        elif self.cfg.train_params.optimizer.lower() == "rmsprop":
-            self.optimizer = optim.RMSprop(self.model.parameters(), **self.cfg.rmsprop)
-        else:
-            raise ValueError(f"Unknown optimizer {self.cfg.train_params.optimizer}")
-
-        # initialize the learning rate scheduler and define loss fucntion
-        self.lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=self.cfg.train_params.epochs
-        )
+        self.optimizer, self.lr_scheduler = self.init_optimizer()
+        # define loss function
         self.criterion = torch.nn.CrossEntropyLoss()
         # if resuming, load the checkpoint
-        if self.cfg.logger.resume:
-            # load checkpoint
-            print("Loading checkpoint")
-            save_dir = self.cfg.directory.load
-            checkpoint = load_checkpoint(save_dir, self.device)
-            self.model.load_state_dict(checkpoint["model"])
-            self.optimizer.load_state_dict(checkpoint["optimizer"])
-            self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-            self.epoch = checkpoint["epoch"]
-            self.e_loss = checkpoint["e_loss"]
-            self.iteration = checkpoint["iteration"]
-            self.best = checkpoint["best"]
-            print(
-                f"{datetime.now():%Y-%m-%d %H:%M:%S} "
-                f"Loading checkpoint was successful, start from epoch {self.epoch}"
-                f" and loss {self.best}"
-            )
-        else:
-            self.epoch = 1
-            self.iteration = 0
-            self.best = np.inf
-            self.e_loss = []
+        self.if_resume()
 
         # initialize the early_stopping object
         self.early_stopping = EarlyStopping(
@@ -93,8 +49,9 @@ class Learner:
         )
 
         # stochastic weight averaging
-        self.swa_model = AveragedModel(self.model)
-        self.swa_scheduler = SWALR(self.optimizer, **self.cfg.SWA)
+        if self.cfg.train_params.epochs > self.cfg.train_params.swa_start:
+            self.swa_model = AveragedModel(self.model)
+            self.swa_scheduler = SWALR(self.optimizer, **self.cfg.SWA)
 
     def train(self):
         """Trains the model"""
@@ -103,41 +60,22 @@ class Learner:
 
         while self.epoch <= self.cfg.train_params.epochs:
             running_loss = []
-            self.model.train()
-            self.logger.set_epoch(self.epoch)
 
             bar = tqdm(
                 self.data,
                 desc=f"Epoch {self.epoch:03}/{self.cfg.train_params.epochs:03}, training: ",
             )
-            for uid, x, y in bar:
+            for data in bar:
                 self.iteration += 1
-                # move data to device
-                x = x.to(device=self.device)
-                y = y.to(device=self.device)
+                (loss, grad_norm), t_train = self.forward_batch(data)
+                t_train /= self.data.batch_size
+                running_loss.append(loss)
 
-                # forward, backward
-                out = self.model(x)
-                loss = self.criterion(out, y)
-                self.optimizer.zero_grad()
-                loss.backward()
-                # gradient clipping
-                if self.cfg.train_params.grad_clipping > 0:
-                    torch.nn.utils.clip_grad_norm_(
-                        self.model.parameters(), self.cfg.train_params.grad_clipping
-                    )
-                # check grad norm for debugging
-                grad_norm = check_grad_norm(self.model)
-                # update
-                self.optimizer.step()
-
-                running_loss.append(loss.item())
-
-                bar.set_postfix(loss=loss.item(), Grad_Norm=grad_norm)
+                bar.set_postfix(loss=loss, Grad_Norm=grad_norm, Time=t_train)
 
                 self.logger.log_metrics(
                     {
-                        "batch_loss": loss.item(),
+                        "batch_loss": loss,
                         "grad_norm": grad_norm,
                     },
                     epoch=self.epoch,
@@ -159,7 +97,7 @@ class Learner:
 
             # validate on val set
             val_loss, t = self.validate()
-            t /= len(self.val_dataset)
+            t /= len(self.val_data.dataset)
 
             # average loss for an epoch
             self.e_loss.append(np.mean(running_loss))  # epoch loss
@@ -167,7 +105,7 @@ class Learner:
                 f"{datetime.now():%Y-%m-%d %H:%M:%S} Epoch {self.epoch:03}, " +
                 f"Iteration {self.iteration:05} summary: train Loss: " +
                 f"{self.e_loss[-1]:.2f} \t| Val loss: {val_loss:.2f}" +
-                f"\t| time: {t:.3f} seconds"
+                f"\t| time: {t:.3f} seconds\n"
             )
 
             self.logger.log_metrics(
@@ -185,7 +123,7 @@ class Learner:
             self.early_stopping(val_loss, self.model)
 
             if self.early_stopping.early_stop and self.cfg.train_params.early_stopping:
-                print(f"Epoch {self.epoch:03}, Early stopping")
+                print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - Epoch {self.epoch:03}, Early stopping")
                 self.save()
                 break
 
@@ -212,11 +150,37 @@ class Learner:
             self.save(
                 name=self.cfg.directory.model_name + "-final" + str(self.epoch) + "-swa"
             )
-
+        _, x, _ = next(iter(self.data))
         macs, params = op_counter(self.model, sample=x)
-        print("macs = ", macs, "params = ", params)
+        print("macs = ", macs, " | params = ", params)
         self.logger.log_metrics({"GFLOPS": macs[:-1], "#Params": params[:-1]})
-        print("Training Finished!")
+        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - Training is DONE!")
+
+    @timeit
+    def forward_batch(self, data):
+        """Forward pass of a batch"""
+        self.model.train()
+        # move data to device
+        uuid, x, y = data
+        x = x.to(device=self.device)
+        y = y.to(device=self.device)
+
+        # forward, backward
+        out = self.model(x)
+        loss = self.criterion(out, y)
+        self.optimizer.zero_grad()
+        loss.backward()
+        # gradient clipping
+        if self.cfg.train_params.grad_clipping > 0:
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), self.cfg.train_params.grad_clipping
+            )
+        # check grad norm for debugging
+        grad_norm = check_grad_norm(self.model)
+        # update
+        self.optimizer.step()
+
+        return loss.item(), grad_norm
 
     @timeit
     @torch.no_grad()
@@ -225,8 +189,8 @@ class Learner:
         self.model.eval()
 
         running_loss = []
-
-        for uid, x, y in tqdm(self.val_data, desc=f"Epoch {self.epoch:03}/{self.cfg.train_params.epochs:03}, validating"):
+        bar = tqdm(self.val_data, desc=f"Epoch {self.epoch:03}/{self.cfg.train_params.epochs:03}, validating")
+        for uid, x, y in bar:
             # move data to device
             x = x.to(device=self.device)
             y = y.to(device=self.device)
@@ -239,6 +203,9 @@ class Learner:
 
             loss = self.criterion(out, y)
             running_loss.append(loss.item())
+            bar.set_postfix(loss=loss.item())
+
+        bar.close()
 
         self.logger.log_image(x[0].squeeze(), f"{out[0].argmax().item()}-|{uid[0]}", step=self.iteration)
 
@@ -247,7 +214,116 @@ class Learner:
 
         return loss
 
+    def init_model(self):
+        """Initializes the model"""
+        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the model!")
+        model = CustomModel(self.cfg.model)
+
+        if 'cuda' in str(self.device) and self.cfg.train_params.device.split(":")[1] == 'a':
+            model = torch.nn.DataParallel(model)
+
+        model.apply(init_weights(**self.cfg.init_model))
+        model = model.to(device=self.device)
+        return model
+
+    def init_optimizer(self):
+        """Initializes the optimizer and learning rate scheduler"""
+        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the optimizer!")
+        if self.cfg.train_params.optimizer.lower() == "adam":
+            optimizer = optim.Adam(self.model.parameters(), **self.cfg.adam)
+
+        elif self.cfg.train_params.optimizer.lower() == "rmsprop":
+            optimizer = optim.RMSprop(self.model.parameters(), **self.cfg.rmsprop)
+
+        elif self.cfg.train_params.optimizer.lower() == "sgd":
+            optimizer = optim.SGD(self.model.parameters(), **self.cfg.sgd)
+
+        else:
+            raise ValueError(f"Unknown optimizer {self.cfg.train_params.optimizer}" + 
+                "; valid optimizers are 'adam' and 'rmsprop'.")
+
+        # initialize the learning rate scheduler
+        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=self.cfg.train_params.epochs
+        )
+        return optimizer, lr_scheduler
+
+    def init_device(self):
+        """Initializes the device"""
+        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the device!")
+        is_cuda_available = torch.cuda.is_available()
+        device = self.cfg.train_params.device
+
+        if 'cpu' in device:
+            print(f"Performing all the operations on CPU.")
+            return torch.device(device)
+
+        elif 'cuda' in device:
+            if is_cuda_available:
+                device_idx = device.split(":")[1]
+                if device_idx == 'a':
+                    print(f"Performing all the operations on CUDA; {torch.cuda.device_count()} devices.")
+                    self.cfg.dataloader.batch_size *= torch.cuda.device_count()
+                    return torch.device(device.split(":")[0])
+                else:
+                    print(f"Performing all the operations on CUDA device {device_idx}.")
+                    return torch.device(device)
+            else:
+                print("CUDA device is not available, falling back to CPU!")
+                return torch.device('cpu')
+        else:
+            raise ValueError(f"Unknown {device}!")
+
+    def init_dataloader(self):
+        """Initializes the dataloaders"""
+        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the train and val dataloaders!")
+        dataset = CustomDataset(**self.cfg.dataset)
+        data = DataLoader(dataset, **self.cfg.dataloader)
+        # creating dataset interface and dataloader for val data
+        self.cfg.val_dataset.update(self.cfg.dataset)
+        val_dataset = CustomDataset(**self.cfg.val_dataset)
+
+        self.cfg.dataloader.update({'shuffle': False})  # for val dataloader
+        val_data = DataLoader(val_dataset, **self.cfg.dataloader)
+
+        # log dataset status
+        self.logger.log_parameters(
+            {"train_len": len(dataset), "val_len": len(val_dataset)}
+        )
+        print(f"Training consists of {len(dataset)} samples, and validation consists of {len(val_dataset)} samples.")
+        self.logger.log_asset_data(json.dumps(dict(val_dataset.cache_names)), 'val-data-uuid.json')
+        self.logger.log_asset_data(json.dumps(dict(dataset.cache_names)), 'train-data-uuid.json')
+
+        return data, val_data
+
+    def if_resume(self):
+        if self.cfg.logger.resume:
+            # load checkpoint
+            print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - LOADING checkpoint!!!")
+            save_dir = self.cfg.directory.load
+            checkpoint = load_checkpoint(save_dir, self.device)
+            self.model.load_state_dict(checkpoint["model"])
+            self.optimizer.load_state_dict(checkpoint["optimizer"])
+            self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+            self.epoch = checkpoint["epoch"] + 1
+            self.e_loss = checkpoint["e_loss"]
+            self.iteration = checkpoint["iteration"] + 1
+            self.best = checkpoint["best"]
+            print(
+                f"{datetime.now():%Y-%m-%d %H:%M:%S} " +
+                f"LOADING checkpoint was successful, start from epoch {self.epoch}" +
+                f" and loss {self.best}"
+            )
+        else:
+            self.epoch = 1
+            self.iteration = 0
+            self.best = np.inf
+            self.e_loss = []
+
+        self.logger.set_epoch(self.epoch)
+
     def init_logger(self, cfg):
+        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the logger!")
         logger = None
         # Check to see if there is a key in environment:
         EXPERIMENT_KEY = cfg.experiment_key
@@ -314,15 +390,24 @@ class Learner:
         return logger
 
     def save(self, name=None):
+        model = self.model
+        if isinstance(self.model, torch.nn.DataParallel):
+            model = model.module
+
         checkpoint = {
+            "time": str(datetime.now()),
             "epoch": self.epoch,
             "iteration": self.iteration,
-            "model": self.model.state_dict(),
+            "model": model.state_dict(),
+            "model_name": type(model).__name__,
             "optimizer": self.optimizer.state_dict(),
+            "optimizer_name": type(self.optimizer).__name__,
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "best": self.best,
             "e_loss": self.e_loss,
         }
+
+        
 
         if name is None and self.epoch >= self.cfg.train_params.swa_start:
             save_name = self.cfg.directory.model_name + str(self.epoch) + "-swa"
