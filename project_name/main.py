@@ -7,7 +7,7 @@ import json
 try:
     sys.path.append(str(Path(".").resolve()))
 except:
-    raise RuntimeError("Can't append root directory of the project the path")
+    raise RuntimeError("Can't append root directory of the project to the path")
 
 import comet_ml
 import numpy as np
@@ -381,7 +381,7 @@ class Learner:
                     disabled=cfg.disabled,
                     project_name=cfg.project,
                     offline_directory=cfg.offline_directory,
-                    auto_weight_logging=True,
+                    auto_histogram_weight_logging=True,
                 )
                 logger.set_name(cfg.experiment_name)
                 logger.add_tags(cfg.tags.split())
