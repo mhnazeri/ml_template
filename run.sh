@@ -1,5 +1,7 @@
-#!/bin/bash
-export PYTHONPATH=$PYTHONPATH:project_name  # add your project folder to python path
+#! /usr/bin/env bash
+
+export PROJECT_NAME=project_name  # add your project folder to python path
+export PYTHONPATH=$PYTHONPATH:$PROJECT_NAME
 export COMET_LOGGING_CONSOLE=info
 
 Help()
@@ -18,10 +20,10 @@ Help()
 run () {
   case $1 in
     train)
-      python project_name/main.py
+      python $PROJECT_NAME/main.py
       ;;
     eval)
-      python project_name/main.py
+      python $PROJECT_NAME/main.py
       ;;
     run)
       python $2

@@ -374,6 +374,7 @@ class Learner:
                     auto_histogram_gradient_logging=True,
                     auto_histogram_activation_logging=True,
                 )
+                logger.set_name(cfg.experiment_name)
                 logger.add_tags(cfg.tags.split())
                 logger.log_parameters(self.cfg)
             else:

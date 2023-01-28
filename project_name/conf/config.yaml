@@ -18,7 +18,7 @@ logger:
   tags: "exp test train"
   resume: False # (boolean) whether to resume training or not
   online: True # (boolean) whether to store logs online or not
-  experiment_id: "" # can be retrieved from logger dashboard, available if only resuming
+  experiment_key: "" # can be retrieved from logger dashboard, available if only resuming
   offline_directory: "./logs" # where to store log data
   disabled: True # disable the comet ml
 
@@ -33,7 +33,7 @@ dataloader:
 dataset:
   root: "project_name/data" # where data resides
   train: True # train data
-  download: False # whether to download data or not
+  download: True # whether to download data or not
   read_only: 10 # only read this number of samples (useful for testing the pipeline)
 
 # Validation dataset parameters/ only change parameters that are different from train data
