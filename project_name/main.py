@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import datetime
 import sys
 import json
+import argparse
 
 try:
     sys.path.append(str(Path(".").resolve()))
@@ -151,7 +152,7 @@ class Learner:
                 name=self.cfg.directory.model_name + "-final" + str(self.epoch) + "-swa"
             )
         _, x, _ = next(iter(self.data))
-        macs, params = op_counter(self.model, sample=x)
+        macs, params = op_counter(self.model, sample=x.to(device=self.device))
         print("macs = ", macs, " | params = ", params)
         self.logger.log_metrics({"GFLOPS": macs[:-1], "#Params": params[:-1]})
         print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - Training is DONE!")
@@ -369,7 +370,8 @@ class Learner:
             if cfg.online:
                 logger = comet_ml.Experiment(
                     disabled=cfg.disabled,
-                    project_name=cfg.project,
+                    project_name=cfg.project_name,
+                    workspace=cfg.workspace,
                     auto_histogram_weight_logging=True,
                     auto_histogram_gradient_logging=True,
                     auto_histogram_activation_logging=True,
@@ -380,7 +382,8 @@ class Learner:
             else:
                 logger = comet_ml.OfflineExperiment(
                     disabled=cfg.disabled,
-                    project_name=cfg.project,
+                    project_name=cfg.project_name,
+                    workspace=cfg.workspace,
                     offline_directory=cfg.offline_directory,
                     auto_histogram_weight_logging=True,
                 )
@@ -429,6 +432,9 @@ class Learner:
 
 
 if __name__ == "__main__":
-    cfg_path = "project_name/conf/config"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--conf', default='conf/config', type=str)
+    args = parser.parse_args()
+    cfg_path = args.conf
     learner = Learner(cfg_path)
     learner.train()

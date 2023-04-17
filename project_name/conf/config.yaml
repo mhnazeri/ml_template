@@ -13,7 +13,8 @@ train_params:
 
 # Logger parameters
 logger:
-  project: "MNIST-test" # project name
+  workspace: "Public" # workspace name
+  project_name: "MNIST-test" # project name
   experiment_name: experiment_34" # name of the experiment
   tags: "exp test train"
   resume: False # (boolean) whether to resume training or not

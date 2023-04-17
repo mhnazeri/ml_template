@@ -20,10 +20,10 @@ Help()
 run () {
   case $1 in
     train)
-      python $PROJECT_NAME/main.py
+      python $PROJECT_NAME/main.py --conf $PROJECT_NAME/conf/config
       ;;
     eval)
-      python $PROJECT_NAME/main.py
+      python $PROJECT_NAME/main.py --conf $PROJECT_NAME/conf/val_config
       ;;
     run)
       python $2
