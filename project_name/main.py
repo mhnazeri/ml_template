@@ -282,6 +282,7 @@ class Learner:
         data = DataLoader(dataset, **self.cfg.dataloader)
         # creating dataset interface and dataloader for val data
         self.cfg.val_dataset.update(self.cfg.dataset)
+        self.cfg.val_dataset.update({'train': False})
         val_dataset = CustomDataset(**self.cfg.val_dataset)
 
         self.cfg.dataloader.update({'shuffle': False})  # for val dataloader
