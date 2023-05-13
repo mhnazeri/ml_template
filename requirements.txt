@@ -2,3 +2,4 @@ comet-ml==3.3.4
 omegaconf==2.0.5
 tqdm==4.55.1
 diskcache==5.2.1
+rich

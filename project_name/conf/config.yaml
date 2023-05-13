@@ -1,6 +1,6 @@
 # Training parameters
 train_params:
-  epochs: 20
+  epochs: 2
   device: "cpu" # device name, values: "cpu" or "cuda:x" where 'x' is gpu index, or "cuda:a" to use all GPUs
   optimizer: "adam"
   save_every: 10

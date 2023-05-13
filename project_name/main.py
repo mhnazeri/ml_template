@@ -11,10 +11,12 @@ except:
     raise RuntimeError("Can't append root directory of the project to the path")
 
 import comet_ml
+from rich import print
 import numpy as np
 from tqdm import tqdm
 import torch
 import torch.optim as optim
+from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.optim.swa_utils import AveragedModel, SWALR
 
@@ -87,7 +89,8 @@ class Learner:
             # update SWA model parameters
             if self.epoch > self.cfg.train_params.swa_start:
                 if print_swa_start:
-                    print(f"Epoch {self.epoch:03}, step {self.iteration:05}, starting SWA!")
+                    print(f"Epoch {self.epoch:03}, step {self.iteration:05}, "
+                        f"[italic red]starting SWA![/italic red]")
                     # print only once
                     print_swa_start = False
 
@@ -105,7 +108,7 @@ class Learner:
             print(
                 f"{datetime.now():%Y-%m-%d %H:%M:%S} Epoch {self.epoch:03}, " +
                 f"Iteration {self.iteration:05} summary: train Loss: " +
-                f"{self.e_loss[-1]:.2f} \t| Val loss: {val_loss:.2f}" +
+                f"[green]{self.e_loss[-1]:.2f}[/green] \t| Val loss: [red]{val_loss:.2f}[/red]" +
                 f"\t| time: {t:.3f} seconds\n"
             )
 
@@ -124,7 +127,7 @@ class Learner:
             self.early_stopping(val_loss, self.model)
 
             if self.early_stopping.early_stop and self.cfg.train_params.early_stopping:
-                print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - Epoch {self.epoch:03}, Early stopping")
+                print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - Epoch {self.epoch:03}, [red]Early stopping[/red]")
                 self.save()
                 break
 
