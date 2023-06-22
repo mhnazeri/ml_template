@@ -3,7 +3,7 @@
 Inspired by [Stanford CS230 blog post](https://cs230.stanford.edu/blog/pytorch/), I created this repository to use as a template for my ML projects. `util.py` will be updated with helper functions through time.
 
 Main libraries:
-* [PyTorch](pytorch.org/): as the main ML framework
+* [PyTorch](https://www.pytorch.org/): as the main ML framework
 * [Comet.ml](https://www.comet.ml): tracking code, logging experiments
 * [OmegaConf](https://omegaconf.readthedocs.io/en/latest/): for managing configuration files
 
@@ -14,7 +14,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-Then install the latest version of PyTorch from the [official site](pytorch.org/). Finally, run the following:
+Then install the latest version of PyTorch from the [official site](htpps://www.pytorch.org/). Finally, run the following:
 ```bash
 pip install -r requirements
 ```
