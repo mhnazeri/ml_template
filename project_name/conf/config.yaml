@@ -22,6 +22,7 @@ logger:
   experiment_key: "" # can be retrieved from logger dashboard, available if only resuming
   offline_directory: "./logs" # where to store log data
   disabled: True # disable the comet ml
+  upload_model: False # upload the model to CometML
 
 # Dataloader parameters
 dataloader:

@@ -11,12 +11,12 @@ except:
     raise RuntimeError("Can't append root directory of the project to the path")
 
 import comet_ml
+from comet_ml.integration.pytorch import log_model
 from rich import print
 import numpy as np
 from tqdm import tqdm
 import torch
 import torch.optim as optim
-from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.optim.swa_utils import AveragedModel, SWALR
 
@@ -184,7 +184,7 @@ class Learner:
         # update
         self.optimizer.step()
 
-        return loss.item(), grad_norm
+        return loss.detach().item(), grad_norm
 
     @timeit
     @torch.no_grad()
@@ -431,8 +431,18 @@ class Learner:
             self.best = self.e_loss[-1]
             checkpoint["best"] = self.best
             save_checkpoint(checkpoint, True, self.cfg.directory.save, save_name)
+            if self.cfg.logger.upload_model:
+                # upload everything in the Directory
+                # self.logger.log_model("VIV-FK", self.cfg.directory.save, save_name)
+                # upload only the current checkpoint
+                log_model(self.logger, checkpoint, model_name=save_name)
         else:
             save_checkpoint(checkpoint, False, self.cfg.directory.save, save_name)
+            if self.cfg.logger.upload_model:
+                # upload everything in the Directory
+                # self.logger.log_model("VIV-FK", self.cfg.directory.save, save_name)
+                # upload only the current checkpoint
+                log_model(self.logger, checkpoint, model_name=save_name)
 
 
 if __name__ == "__main__":
