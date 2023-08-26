@@ -19,6 +19,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.optim.swa_utils import AveragedModel, SWALR
+from torch.cuda.amp import autocast, GradScaler
 
 from model.net import CustomModel
 from model.data_loader import CustomDataset
@@ -39,6 +40,7 @@ class Learner:
         self.model = self.init_model()
         # initialize the optimizer
         self.optimizer, self.lr_scheduler = self.init_optimizer()
+        self.scaler = GradScaler()
         # define loss function
         self.criterion = torch.nn.CrossEntropyLoss()
         # if resuming, load the checkpoint
@@ -170,19 +172,21 @@ class Learner:
         y = y.to(device=self.device)
 
         # forward, backward
-        out = self.model(x)
-        loss = self.criterion(out, y)
+        with autocast():
+            out = self.model(x)
+            loss = self.criterion(out, y)
         self.optimizer.zero_grad()
-        loss.backward()
+        self.scaler.scale(loss).backward()
         # gradient clipping
         if self.cfg.train_params.grad_clipping > 0:
             torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(), self.cfg.train_params.grad_clipping
             )
+        # update
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
         # check grad norm for debugging
         grad_norm = check_grad_norm(self.model)
-        # update
-        self.optimizer.step()
 
         return loss.detach().item(), grad_norm
 
