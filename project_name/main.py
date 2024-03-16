@@ -15,9 +15,10 @@ from comet_ml.integration.pytorch import log_model
 from rich import print
 import numpy as np
 from tqdm import tqdm
+from icecream import ic, install
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torch.optim.swa_utils import AveragedModel, SWALR
 from torch.cuda.amp import autocast, GradScaler
 
@@ -34,6 +35,25 @@ class Learner:
         self.cfg = get_conf(cfg_dir)
         self.logger = self.init_logger(self.cfg.logger)
         self.device = self.init_device()
+        # set the name for the model
+        self.cfg.directory.model_name = self.cfg.logger.experiment_name
+        self.cfg.directory.model_name += f"-{datetime.now():%m-%d-%H-%M}"
+        self.cfg.logger.experiment_name = self.cfg.directory.model_name
+        # if debugging True, set a few rules
+        if self.cfg.train_params.debug:
+            install()
+            ic.enable()
+            ic.configureOutput(prefix=lambda: f"{datetime.now():%Y-%m-%d %H:%M:%S} |> ")
+            torch.autograd.set_detect_anomaly(True)
+            self.cfg.logger.disabled = True
+        else:
+            ic.disable()
+            torch.autograd.set_detect_anomaly(True)
+        # fix the seed for reproducibility
+        torch.random.manual_seed(self.cfg.train_params.seed)
+        torch.cuda.manual_seed(self.cfg.train_params.seed)
+        torch.cuda.manual_seed_all(self.cfg.train_params.seed)
+        np.random.seed(self.cfg.train_params.seed)
         # creating dataset interface and dataloader for trained data
         self.data, self.val_data = self.init_dataloader()
         # create model and initialize its weights and move them to the device
@@ -285,13 +305,19 @@ class Learner:
     def init_dataloader(self):
         """Initializes the dataloaders"""
         print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the train and val dataloaders!")
+        # defining the dataset interface
         dataset = CustomDataset(**self.cfg.dataset)
+        val_dataset = CustomDataset(**self.cfg.val_dataset)
+        # during debugging, only select a subset of the dataset
+        if self.cfg.train_params.debug:
+            dataset = Subset(dataset, list(range(self.cfg.dataloader.batch_size * 2)))
+            val_dataset = Subset(
+                val_dataset, list(range(self.cfg.dataloader.batch_size * 2))
+            )
+        # creating dataloader
         data = DataLoader(dataset, **self.cfg.dataloader)
-        # creating dataset interface and dataloader for val data
         self.cfg.val_dataset.update(self.cfg.dataset)
         self.cfg.val_dataset.update({'train': False})
-        val_dataset = CustomDataset(**self.cfg.val_dataset)
-
         self.cfg.dataloader.update({'shuffle': False})  # for val dataloader
         val_data = DataLoader(val_dataset, **self.cfg.dataloader)
 

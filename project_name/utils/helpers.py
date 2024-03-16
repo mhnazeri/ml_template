@@ -25,18 +25,22 @@ def timeit(fn):
     returns: the function result and the time taken
     """
     # first, check if cuda is available
-    cuda = True if torch.cuda.is_available() else False
+    cuda = torch.cuda.is_available()
     if cuda:
 
         @functools.wraps(fn)
         def wrapper_fn(*args, **kwargs):
-            torch.cuda.synchronize()
-            t1 = time()
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            # torch.cuda.synchronize()
+            # t1 = time()
+            start.record()
             result = fn(*args, **kwargs)
+            end.record()
             torch.cuda.synchronize()
-            t2 = time()
-            take = t2 - t1
-            return result, take
+            # t2 = time()
+            # take = t2 - t1
+            return result, start.elapsed_time(end) / 1000
 
     else:
 
