@@ -135,7 +135,7 @@ class Learner:
 
             if self.epoch % self.cfg.train_params.save_every == 0 or (
                 self.e_loss[-1] < self.best
-                and self.epoch % self.cfg.train_params.start_saving_best == 0
+                and self.epoch >= self.cfg.train_params.start_saving_best
             ):
                 self.save()
 
@@ -426,7 +426,7 @@ class Learner:
             checkpoint["model-swa"] = self.swa_model.state_dict()
 
         elif name is None:
-            save_name = self.cfg.directory.model_name + str(self.epoch)
+            save_name = f"{self.cfg.directory.model_name}-E{self.epoch}"
 
         else:
             save_name = name
