@@ -25,6 +25,10 @@ logger:
   offline_directory: "./logs" # where to store log data
   disabled: True # disable the comet ml
   upload_model: False # upload the model to CometML
+  auto_histogram_weight_logging: True # allows you to enable/disable histogram logging for biases and weights
+  auto_histogram_gradient_logging: True # allows you to enable/disable automatic histogram logging of gradients
+  auto_histogram_activation_logging: True # allows you to enable/disable automatic histogram logging of activations
+
 
 # Dataloader parameters
 dataloader:
