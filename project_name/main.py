@@ -11,7 +11,7 @@ except:
     raise RuntimeError("Can't append root directory of the project to the path")
 
 import comet_ml
-from comet_ml.integration.pytorch import log_model
+from comet_ml.integration.pytorch import log_model, watch
 from rich import print
 import numpy as np
 from tqdm import tqdm
@@ -58,6 +58,8 @@ class Learner:
         self.data, self.val_data = self.init_dataloader()
         # create model and initialize its weights and move them to the device
         self.model = self.init_model()
+        # log the model gradients, weights, and activations in comet
+        watch(self.model)
         # initialize the optimizer
         self.optimizer, self.lr_scheduler = self.init_optimizer()
         self.scaler = GradScaler()
