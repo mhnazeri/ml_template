@@ -1,5 +1,7 @@
 # Training parameters
 train_params:
+  debug: True
+  seed: 42
   epochs: 2
   device: "cpu" # device name, values: "cpu" or "cuda:x" where 'x' is gpu index, or "cuda:a" to use all GPUs
   optimizer: "adam"
@@ -44,7 +46,7 @@ val_dataset:
 
 # directories
 directory:
-  model_name: "model-name" # file name for saved model
+  model_name: "model-name" # file name for saved model. To be set automatically, no need to change
   save: "project_name/checkpoint"
   load: "project_name/checkpoint/model-name-best.pt"
 
