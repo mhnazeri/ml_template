@@ -25,6 +25,7 @@ logger:
   offline_directory: "./logs" # where to store log data
   disabled: True # disable the comet ml
   upload_model: False # upload the model to CometML
+  log_env_details: False # log virtual environment details
   auto_histogram_weight_logging: True # allows you to enable/disable histogram logging for biases and weights
   auto_histogram_gradient_logging: True # allows you to enable/disable automatic histogram logging of gradients
   auto_histogram_activation_logging: True # allows you to enable/disable automatic histogram logging of activations
@@ -69,6 +70,16 @@ init_model:
   mode: "fan_in" # either 'fan_in' (default) or 'fan_out'. Choosing 'fan_in' preserves the magnitude of the variance of the weights in the forward pass. Choosing 'fan_out' preserves the magnitudes in the backwards pass.
   nonlinearity: "leaky_relu" # the non-linear function (nn.functional name), recommended to use only with 'relu' or 'leaky_relu' (default).
   gain: 1.0 # an optional scaling factor for xavier initialization
+
+# AdamW parameters if using Adam optimizer
+adamw:
+  lr: 1e-3
+  betas:
+    - 0.9
+    - 0.999
+  eps: 1e-8
+  weight_decay: 0
+  amsgrad: False
 
 # Adam parameters if using Adam optimizer
 adam:

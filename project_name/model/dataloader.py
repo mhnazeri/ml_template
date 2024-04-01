@@ -1,5 +1,6 @@
 import os.path as osp
 import uuid
+import shutil
 
 from diskcache import Index
 from typing import Callable, Optional
@@ -17,18 +18,21 @@ class CustomDataset(Dataset):
             self.transform = transforms.ToTensor()
         self.dataset = MNIST(root, train=train, transform=self.transform, download=download)
 
-        if read_only > 0:
-            self.dataset.data = self.dataset.data[:read_only]
-            self.dataset.targets = self.dataset.targets[:read_only]
+        self.mode = 'train' if train else 'val'
+        self.create_uuid(root)
 
-        mode = 'train' if train else 'val'
-        self.create_uuid(root + f'/{mode}' + '-cache')
-
-    def create_uuid(self, directory: Optional[str] = './cache'):
+    def create_uuid(self, directory: Optional[str] = './cache', force: bool = False):
         """Create UID for samples to get the actual name for later use cases"""
-        print("START caching file names.")
+        print(f"START caching {self.mode} file names.")
+        directory = directory + f'/{self.mode}' + '-cache'
         if osp.exists(directory):
-            self.cache_names = Index(directory)
+            if force:
+                shutil.rmtree(directory)
+                self.cache_names = Index(directory, {
+                    str(index): str(uuid.uuid5(uuid.NAMESPACE_X500, str(index)))  for index, _ in enumerate(self.dataset)
+                })
+            else:
+                self.cache_names = Index(directory)
         else:
             self.cache_names = Index(directory, {
                     str(index): str(uuid.uuid5(uuid.NAMESPACE_X500, str(index)))  for index, _ in enumerate(self.dataset)
@@ -37,7 +41,7 @@ class CustomDataset(Dataset):
             # self.cache_names.update({
             #         value: key for key, value in self.cache_names.items()
             #     })
-        print("END caching file names.")
+        print(f"END caching {self.mode} file names.")
 
     def get_uuid(self, file_name):
         """Works both ways, given filename returns uuid and vice versa"""

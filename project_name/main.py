@@ -23,7 +23,7 @@ from torch.optim.swa_utils import AveragedModel, SWALR
 from torch.cuda.amp import autocast, GradScaler
 
 from model.net import CustomModel
-from model.data_loader import CustomDataset
+from model.dataloader import CustomDataset
 from utils.nn import check_grad_norm, init_weights, EarlyStopping, op_counter
 from utils.io import save_checkpoint, load_checkpoint
 from utils.helpers import get_conf, timeit
@@ -31,10 +31,8 @@ from utils.helpers import get_conf, timeit
 
 class Learner:
     def __init__(self, cfg_dir: str):
-        # load config file and initialize the logger and the device
+        # load config file
         self.cfg = get_conf(cfg_dir)
-        self.logger = self.init_logger(self.cfg.logger)
-        self.device = self.init_device()
         # set the name for the model
         self.cfg.directory.model_name = self.cfg.logger.experiment_name
         self.cfg.directory.model_name += f"-{datetime.now():%m-%d-%H-%M}"
@@ -49,6 +47,9 @@ class Learner:
         else:
             ic.disable()
             torch.autograd.set_detect_anomaly(True)
+        # initialize the logger and the device
+        self.logger = self.init_logger(self.cfg.logger)
+        self.device = self.init_device()
         # fix the seed for reproducibility
         torch.random.manual_seed(self.cfg.train_params.seed)
         torch.cuda.manual_seed(self.cfg.train_params.seed)
@@ -259,7 +260,10 @@ class Learner:
     def init_optimizer(self):
         """Initializes the optimizer and learning rate scheduler"""
         print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the optimizer!")
-        if self.cfg.train_params.optimizer.lower() == "adam":
+        if self.cfg.train_params.optimizer.lower() == "adamw":
+            optimizer = optim.AdamW(self.model.parameters(), **self.cfg.adamw)
+
+        elif self.cfg.train_params.optimizer.lower() == "adam":
             optimizer = optim.Adam(self.model.parameters(), **self.cfg.adam)
 
         elif self.cfg.train_params.optimizer.lower() == "rmsprop":
@@ -309,17 +313,19 @@ class Learner:
         print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the train and val dataloaders!")
         # defining the dataset interface
         dataset = CustomDataset(**self.cfg.dataset)
-        val_dataset = CustomDataset(**self.cfg.val_dataset)
+        self.cfg.dataset.update(self.cfg.val_dataset)
+        val_dataset = CustomDataset(**self.cfg.dataset)
         # during debugging, only select a subset of the dataset
         if self.cfg.train_params.debug:
             dataset = Subset(dataset, list(range(self.cfg.dataloader.batch_size * 2)))
+            dataset.dataset.create_uuid(self.cfg.dataset.root, force=True)
             val_dataset = Subset(
                 val_dataset, list(range(self.cfg.dataloader.batch_size * 2))
             )
+            val_dataset.dataset.create_uuid(self.cfg.dataset.root, force=True)
         # creating dataloader
         data = DataLoader(dataset, **self.cfg.dataloader)
-        self.cfg.val_dataset.update(self.cfg.dataset)
-        self.cfg.val_dataset.update({'train': False})
+
         self.cfg.dataloader.update({'shuffle': False})  # for val dataloader
         val_data = DataLoader(val_dataset, **self.cfg.dataloader)
 
@@ -328,8 +334,8 @@ class Learner:
             {"train_len": len(dataset), "val_len": len(val_dataset)}
         )
         print(f"Training consists of {len(dataset)} samples, and validation consists of {len(val_dataset)} samples.")
-        self.logger.log_asset_data(json.dumps(dict(val_dataset.cache_names)), 'val-data-uuid.json')
-        self.logger.log_asset_data(json.dumps(dict(dataset.cache_names)), 'train-data-uuid.json')
+        self.logger.log_asset_data(json.dumps(dict(val_dataset.dataset.cache_names)), 'val-data-uuid.json')
+        self.logger.log_asset_data(json.dumps(dict(dataset.dataset.cache_names)), 'train-data-uuid.json')
 
         return data, val_data
 
@@ -464,15 +470,11 @@ class Learner:
             checkpoint["best"] = self.best
             save_checkpoint(checkpoint, True, self.cfg.directory.save, save_name)
             if self.cfg.logger.upload_model:
-                # upload everything in the Directory
-                # self.logger.log_model("VIV-FK", self.cfg.directory.save, save_name)
                 # upload only the current checkpoint
                 log_model(self.logger, checkpoint, model_name=save_name)
         else:
             save_checkpoint(checkpoint, False, self.cfg.directory.save, save_name)
             if self.cfg.logger.upload_model:
-                # upload everything in the Directory
-                # self.logger.log_model("VIV-FK", self.cfg.directory.save, save_name)
                 # upload only the current checkpoint
                 log_model(self.logger, checkpoint, model_name=save_name)
 
