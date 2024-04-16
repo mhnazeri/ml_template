@@ -334,8 +334,12 @@ class Learner:
             {"train_len": len(dataset), "val_len": len(val_dataset)}
         )
         print(f"Training consists of {len(dataset)} samples, and validation consists of {len(val_dataset)} samples.")
-        self.logger.log_asset_data(json.dumps(dict(val_dataset.dataset.cache_names)), 'val-data-uuid.json')
-        self.logger.log_asset_data(json.dumps(dict(dataset.dataset.cache_names)), 'train-data-uuid.json')
+        if self.cfg.train_params.debug:
+            self.logger.log_asset_data(json.dumps(dict(val_dataset.dataset.cache_names)), 'val-data-uuid.json')
+            self.logger.log_asset_data(json.dumps(dict(dataset.dataset.cache_names)), 'train-data-uuid.json')
+        else:
+            self.logger.log_asset_data(json.dumps(dict(val_dataset.cache_names)), 'val-data-uuid.json')
+            self.logger.log_asset_data(json.dumps(dict(dataset.cache_names)), 'train-data-uuid.json')
 
         return data, val_data
 
