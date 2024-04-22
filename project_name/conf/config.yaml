@@ -1,10 +1,10 @@
 # Training parameters
 train_params:
-  debug: True
+  debug: False
   seed: 42
   epochs: 2
-  device: "cpu" # device name, values: "cpu" or "cuda:x" where 'x' is gpu index, or "cuda:a" to use all GPUs
-  optimizer: "adam"
+  device: cuda:0 # device name, values: "cpu" or "cuda:x" where 'x' is gpu index, or "cuda:a" to use all GPUs
+  optimizer: adam
   save_every: 10
   swa_start: 30 # start epoch of stochastic weight averaging
   patience: 3 # how many epochs we want to wait after the last time the validation loss improved before breaking the training loop
@@ -15,15 +15,15 @@ train_params:
 
 # Logger parameters
 logger:
-  workspace: "Public" # workspace name
-  project_name: "MNIST-test" # project name
-  experiment_name: experiment_34" # name of the experiment
+  workspace: mhnazeri # workspace name
+  project_name: MNIST-test # project name
+  experiment_name: experiment_34 # name of the experiment
   tags: "exp test train"
   resume: False # (boolean) whether to resume training or not
   online: True # (boolean) whether to store logs online or not
   experiment_key: "" # can be retrieved from logger dashboard, available if only resuming
-  offline_directory: "./logs" # where to store log data
-  disabled: True # disable the comet ml
+  offline_directory: ./logs # where to store log data
+  disabled: False # disable the comet ml
   upload_model: False # upload the model to CometML
   log_env_details: False # log virtual environment details
   auto_histogram_weight_logging: True # allows you to enable/disable histogram logging for biases and weights
@@ -40,7 +40,7 @@ dataloader:
 
 # Train dataset parameters
 dataset:
-  root: "project_name/data" # where data resides
+  root: project_name/data # where data resides
   train: True # train data
   download: True # whether to download data or not
   read_only: 10 # only read this number of samples (useful for testing the pipeline)
@@ -51,9 +51,9 @@ val_dataset:
 
 # directories
 directory:
-  model_name: "model-name" # file name for saved model. To be set automatically, no need to change
-  save: "project_name/checkpoint"
-  load: "project_name/checkpoint/model-name-best.pt"
+  model_name: model-name # file name for saved model. To be set automatically, no need to change
+  save: project_name/checkpoint
+  load: project_name/checkpoint/model-name-best.pt
 
 # model parameters
 model:
@@ -62,13 +62,13 @@ model:
 
 # model initializer
 init_model:
-  method: "uniform" # kaiming_normal, kaiming_uniform, normal, uniform, xavier_normal, xavier_uniform
+  method: uniform # kaiming_normal, kaiming_uniform, normal, uniform, xavier_normal, xavier_uniform
   mean: 0.0 # mean of normal distribution
   std: 0.5 # standard deviation for normal distribution
   low: 0.0 # minimum threshold for uniform distribution
   high: 1.0 # maximum threshold for uniform distribution
-  mode: "fan_in" # either 'fan_in' (default) or 'fan_out'. Choosing 'fan_in' preserves the magnitude of the variance of the weights in the forward pass. Choosing 'fan_out' preserves the magnitudes in the backwards pass.
-  nonlinearity: "leaky_relu" # the non-linear function (nn.functional name), recommended to use only with 'relu' or 'leaky_relu' (default).
+  mode: fan_in # either 'fan_in' (default) or 'fan_out'. Choosing 'fan_in' preserves the magnitude of the variance of the weights in the forward pass. Choosing 'fan_out' preserves the magnitudes in the backwards pass.
+  nonlinearity: leaky_relu # the non-linear function (nn.functional name), recommended to use only with 'relu' or 'leaky_relu' (default).
   gain: 1.0 # an optional scaling factor for xavier initialization
 
 # AdamW parameters if using Adam optimizer
@@ -110,6 +110,6 @@ sgd:
 
 # Stochastic Weight Averaging parameters
 SWA:
-  anneal_strategy: "linear" # 'linear' of 'cos'
+  anneal_strategy: linear # 'linear' of 'cos'
   anneal_epochs: 5 # anneals the lr from its initial value to swa_lr in anneal_epochs within each parameter group
   swa_lr: 0.05

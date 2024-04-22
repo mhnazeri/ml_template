@@ -397,7 +397,7 @@ class Learner:
             # 2. Setup the existing experiment to carry on:
             logger = comet_ml.ExistingExperiment(
                 previous_experiment=EXPERIMENT_KEY,
-                log_env_details=True,  # to continue env logging
+                log_env_details=cfg.log_env_details,  # to continue env logging
                 log_env_gpu=True,  # to continue GPU logging
                 log_env_cpu=True,  # to continue CPU logging
                 auto_histogram_weight_logging=True,
@@ -418,6 +418,7 @@ class Learner:
                     disabled=cfg.disabled,
                     project_name=cfg.project_name,
                     workspace=cfg.workspace,
+                    log_env_details=cfg.log_env_details,
                     auto_histogram_weight_logging=True,
                     auto_histogram_gradient_logging=True,
                     auto_histogram_activation_logging=True,
