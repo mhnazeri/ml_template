@@ -10,7 +10,6 @@ try:
 except:
     raise RuntimeError("Can't append root directory of the project to the path")
 
-import comet_ml
 from comet_ml.integration.pytorch import log_model, watch
 from rich import print
 import numpy as np
@@ -20,13 +19,13 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 from torch.optim.swa_utils import AveragedModel, SWALR
-from torch.cuda.amp import autocast, GradScaler
+# from torch.cuda.amp import autocast, GradScaler
 
 from model.net import CustomModel
 from model.dataloader import CustomDataset
-from utils.nn import check_grad_norm, init_weights, EarlyStopping, op_counter
+from utils.nn import check_grad_norm, init_weights, EarlyStopping, op_counter, init_optimizer, init_logger
 from utils.io import save_checkpoint, load_checkpoint
-from utils.helpers import get_conf, timeit
+from utils.helpers import get_conf, timeit, init_device
 
 
 class Learner:
@@ -48,8 +47,9 @@ class Learner:
             ic.disable()
             torch.autograd.set_detect_anomaly(True)
         # initialize the logger and the device
-        self.logger = self.init_logger(self.cfg.logger)
-        self.device = self.init_device()
+        self.logger = init_logger(self.cfg)
+        self.device = init_device(self.cfg)
+        torch.set_float32_matmul_precision('high')
         # fix the seed for reproducibility
         torch.random.manual_seed(self.cfg.train_params.seed)
         torch.cuda.manual_seed(self.cfg.train_params.seed)
@@ -60,10 +60,10 @@ class Learner:
         # create model and initialize its weights and move them to the device
         self.model = self.init_model()
         # log the model gradients, weights, and activations in comet
-        watch(self.model)
+        watch(self.model, log_step_interval=400)
         # initialize the optimizer
-        self.optimizer, self.lr_scheduler = self.init_optimizer()
-        self.scaler = GradScaler()
+        self.optimizer, self.lr_scheduler = init_optimizer(self.cfg, self.model, self.cfg.train_params.optimizer)
+        # self.scaler = GradScaler()
         # define loss function
         self.criterion = torch.nn.CrossEntropyLoss()
         # if resuming, load the checkpoint
@@ -195,19 +195,21 @@ class Learner:
         y = y.to(device=self.device)
 
         # forward, backward
-        with autocast():
-            out = self.model(x)
-            loss = self.criterion(out, y)
+        # with autocast():
+        out = self.model(x)
+        loss = self.criterion(out, y)
         self.optimizer.zero_grad()
-        self.scaler.scale(loss).backward()
+        # self.scaler.scale(loss).backward()
+        loss.backward()
         # gradient clipping
         if self.cfg.train_params.grad_clipping > 0:
             torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(), self.cfg.train_params.grad_clipping
             )
         # update
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
+        # self.scaler.step(self.optimizer)
+        # self.scaler.update()
+        self.optimizer.step()
         # check grad norm for debugging
         grad_norm = check_grad_norm(self.model)
 
@@ -238,7 +240,7 @@ class Learner:
 
         bar.close()
 
-        self.logger.log_image(x[0].squeeze(), f"{out[0].argmax().item()}-|{uid[0]}", step=self.iteration)
+        self.logger.log_image(x[0].squeeze().cpu(), f"{out[0].argmax().item()}-|{uid[0]}", step=self.iteration)
 
         # average loss
         loss = np.mean(running_loss)
@@ -256,31 +258,6 @@ class Learner:
         model.apply(init_weights(**self.cfg.init_model))
         model = model.to(device=self.device)
         return model
-
-    def init_optimizer(self):
-        """Initializes the optimizer and learning rate scheduler"""
-        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the optimizer!")
-        if self.cfg.train_params.optimizer.lower() == "adamw":
-            optimizer = optim.AdamW(self.model.parameters(), **self.cfg.adamw)
-
-        elif self.cfg.train_params.optimizer.lower() == "adam":
-            optimizer = optim.Adam(self.model.parameters(), **self.cfg.adam)
-
-        elif self.cfg.train_params.optimizer.lower() == "rmsprop":
-            optimizer = optim.RMSprop(self.model.parameters(), **self.cfg.rmsprop)
-
-        elif self.cfg.train_params.optimizer.lower() == "sgd":
-            optimizer = optim.SGD(self.model.parameters(), **self.cfg.sgd)
-
-        else:
-            raise ValueError(f"Unknown optimizer {self.cfg.train_params.optimizer}" + 
-                "; valid optimizers are 'adam' and 'rmsprop'.")
-
-        # initialize the learning rate scheduler
-        lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, T_max=self.cfg.train_params.epochs
-        )
-        return optimizer, lr_scheduler
 
     def init_device(self):
         """Initializes the device"""
@@ -326,7 +303,7 @@ class Learner:
         # creating dataloader
         data = DataLoader(dataset, **self.cfg.dataloader)
 
-        self.cfg.dataloader.update({'shuffle': False})  # for val dataloader
+        # self.cfg.dataloader.update({'shuffle': False})  # for val dataloader
         val_data = DataLoader(val_dataset, **self.cfg.dataloader)
 
         # log dataset status
@@ -369,76 +346,6 @@ class Learner:
 
         self.logger.set_epoch(self.epoch)
 
-    def init_logger(self, cfg):
-        print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the logger!")
-        logger = None
-        # Check to see if there is a key in environment:
-        EXPERIMENT_KEY = cfg.experiment_key
-
-        # First, let's see if we continue or start fresh:
-        CONTINUE_RUN = cfg.resume
-        if EXPERIMENT_KEY and CONTINUE_RUN:
-            # There is one, but the experiment might not exist yet:
-            api = comet_ml.API()  # Assumes API key is set in config/env
-            try:
-                api_experiment = api.get_experiment_by_id(EXPERIMENT_KEY)
-            except Exception:
-                api_experiment = None
-            if api_experiment is not None:
-                CONTINUE_RUN = True
-                # We can get the last details logged here, if logged:
-                # step = int(api_experiment.get_parameters_summary("batch")["valueCurrent"])
-                # epoch = int(api_experiment.get_parameters_summary("epochs")["valueCurrent"])
-
-        if CONTINUE_RUN:
-            # 1. Recreate the state of ML system before creating experiment
-            # otherwise it could try to log params, graph, etc. again
-            # ...
-            # 2. Setup the existing experiment to carry on:
-            logger = comet_ml.ExistingExperiment(
-                previous_experiment=EXPERIMENT_KEY,
-                log_env_details=cfg.log_env_details,  # to continue env logging
-                log_env_gpu=True,  # to continue GPU logging
-                log_env_cpu=True,  # to continue CPU logging
-                auto_histogram_weight_logging=True,
-                auto_histogram_gradient_logging=True,
-                auto_histogram_activation_logging=True,
-            )
-            # Retrieved from above APIExperiment
-            # self.logger.set_epoch(epoch)
-
-        else:
-            # 1. Create the experiment first
-            #    This will use the COMET_EXPERIMENT_KEY if defined in env.
-            #    Otherwise, you could manually set it here. If you don't
-            #    set COMET_EXPERIMENT_KEY, the experiment will get a
-            #    random key!
-            if cfg.online:
-                logger = comet_ml.Experiment(
-                    disabled=cfg.disabled,
-                    project_name=cfg.project_name,
-                    workspace=cfg.workspace,
-                    log_env_details=cfg.log_env_details,
-                    auto_histogram_weight_logging=True,
-                    auto_histogram_gradient_logging=True,
-                    auto_histogram_activation_logging=True,
-                )
-                logger.set_name(cfg.experiment_name)
-                logger.add_tags(cfg.tags.split())
-                logger.log_parameters(self.cfg)
-            else:
-                logger = comet_ml.OfflineExperiment(
-                    disabled=cfg.disabled,
-                    project_name=cfg.project_name,
-                    workspace=cfg.workspace,
-                    offline_directory=cfg.offline_directory,
-                    auto_histogram_weight_logging=True,
-                )
-                logger.set_name(cfg.experiment_name)
-                logger.add_tags(cfg.tags.split())
-                logger.log_parameters(self.cfg)
-
-        return logger
 
     def save(self, name=None):
         model = self.model

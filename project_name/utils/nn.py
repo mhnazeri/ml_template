@@ -1,8 +1,11 @@
 """Utils for nn module"""
 from typing import List, Optional
+from datetime import datetime
+
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
+from torch import optim
 from thop import profile, clever_format
 
 
@@ -17,6 +20,54 @@ def check_grad_norm(net: nn.Module):
         total_norm += param_norm.item() ** 2
     total_norm = total_norm ** (1.0 / 2)
     return total_norm
+
+
+def init_optimizer(cfg, model: nn.Module = None, optimizer_method: str = "adam"):
+    """Initialize and return optimizer and learning rate scheduler.
+
+    Args:
+        cfg: (dict) configuration parameters
+        model: (nn.Module) the model
+        optimizer_method: (str) optimizer method
+    """
+    print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the optimizer!")
+
+    if optimizer_method == "adamw":
+        optimizer = optim.AdamW(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            **cfg.adamw,
+        )
+
+    elif optimizer_method == "adam":
+        optimizer = optim.Adam(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            **cfg.adam,
+        )
+
+    elif optimizer_method == "rmsprop":
+        optimizer = optim.RMSprop(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            **cfg.rmsprop,
+        )
+
+    elif optimizer_method == "sgd":
+        optimizer = optim.SGD(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            **cfg.sgd,
+        )
+
+    else:
+        raise ValueError(
+            f"Unknown optimizer {optimizer_method}"
+            + "; valid optimizers are 'adam', 'adamw', 'sgd' and 'rmsprop'."
+        )
+
+    # initialize the learning rate scheduler
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=cfg.train_params.epochs
+    )
+
+    return optimizer, scheduler
 
 
 def freeze(model: nn.Module, exclude: List = [], verbose: bool = False) -> nn.Module:

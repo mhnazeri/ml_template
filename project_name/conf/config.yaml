@@ -2,12 +2,12 @@
 train_params:
   debug: False
   seed: 42
-  epochs: 2
+  epochs: 50
   device: cuda:0 # device name, values: "cpu" or "cuda:x" where 'x' is gpu index, or "cuda:a" to use all GPUs
-  optimizer: adam
+  optimizer: adamw
   save_every: 10
-  swa_start: 30 # start epoch of stochastic weight averaging
-  patience: 3 # how many epochs we want to wait after the last time the validation loss improved before breaking the training loop
+  swa_start: 60 # start epoch of stochastic weight averaging
+  patience: 53 # how many epochs we want to wait after the last time the validation loss improved before breaking the training loop
   early_stopping_delta: 0
   grad_clipping: 1.0 # set to zero to disable grad clipping
   early_stopping: False # whether to stop early or not
@@ -33,10 +33,11 @@ logger:
 
 # Dataloader parameters
 dataloader:
-  num_workers: 2 # Allowing multi-processing
-  batch_size: 64
+  num_workers: 20 # Allowing multi-processing
+  batch_size: 128
   shuffle: True # whether to shuffle data or not
-  pin_memory: False # use pageable memory or pinned memory (https://developer.nvidia.com/blog/how-optimize-data-transfers-cuda-cc/)
+  pin_memory: True # use pageable memory or pinned memory (https://developer.nvidia.com/blog/how-optimize-data-transfers-cuda-cc/)
+  prefetch_factor: 4
 
 # Train dataset parameters
 dataset:
