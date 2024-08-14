@@ -36,6 +36,9 @@ class Learner:
         self.cfg.directory.model_name = self.cfg.logger.experiment_name
         self.cfg.directory.model_name += f"-{datetime.now():%m-%d-%H-%M}"
         self.cfg.logger.experiment_name = self.cfg.directory.model_name
+        self.cfg.directory.save = str(
+            Path(self.cfg.directory.save) / self.cfg.directory.model_name
+        )
         # if debugging True, set a few rules
         if self.cfg.train_params.debug:
             install()
