@@ -16,6 +16,7 @@ def get_conf(name: str):
         name: (str) name of the yaml file
     """
     OmegaConf.register_new_resolver("from_yaml", lambda address, key, _root_: OmegaConf.load(address).get(key, _root_))
+    OmegaConf.register_new_resolver("eval", eval)
     name = name if name.split(".")[-1] == "yaml" else name + ".yaml"
     cfg = OmegaConf.load(name)
     return cfg

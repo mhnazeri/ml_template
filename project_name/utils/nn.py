@@ -269,9 +269,9 @@ def init_weights(
         return init
 
 
-def op_counter(model, sample):
+def op_counter(model, sample: tuple):
     model.eval()
-    macs, params = profile(model, inputs=(sample,))
+    macs, params = profile(model, inputs=sample)
     macs, params = clever_format([macs, params], "%.3f")
     return macs, params
 

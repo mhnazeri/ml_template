@@ -17,7 +17,7 @@ def save_checkpoint(state: dict, is_best: bool, save_dir: str, name: str):
         save_dir: (str) the location where to save the checkpoint
         name: (str) file name to be written
     """
-    filepath = os.path.join(save_dir, f"{name}.pth")
+    filepath = os.path.join(save_dir, f"{name}.tar")
     if not os.path.exists(save_dir):
         print(
             "Checkpoint Directory does not exist! Making directory {}".format(save_dir)
@@ -28,7 +28,7 @@ def save_checkpoint(state: dict, is_best: bool, save_dir: str, name: str):
     torch.save(state, filepath)
     if is_best:
         shutil.copyfile(
-            filepath, os.path.join(save_dir, f"{name.split('-')[0]}-best.pth")
+            filepath, os.path.join(save_dir, f"{name.split('-')[0]}-best.tar")
         )
 
 
