@@ -19,7 +19,35 @@ def get_conf(name: str):
     OmegaConf.register_new_resolver("eval", eval)
     name = name if name.split(".")[-1] == "yaml" else name + ".yaml"
     cfg = OmegaConf.load(name)
+    OmegaConf.resolve(cfg)
     return cfg
+
+
+def fix_seed(seed: int) -> None:
+    """Fix reproducibility arguments"""
+    seed = seed if seed else 42
+    torch.random.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    torch.backends.cudnn.benchmark = True
+    torch.use_deterministic_algorithms(True)
+    torch.set_float32_matmul_precision('high')
+
+
+def to_tensor(array: Any, dtype: torch.dtype = torch.float) -> torch.Tensor:
+    if isinstance(array, torch.Tensor):
+        return array.to(dtype)
+    elif isinstance(array, np.ndarray):
+        return torch.from_numpy(array).float()
+    elif isinstance(array, list):
+        return torch.tensor(array, dtype=dtype)
+    elif isinstance(array, int):
+        # returns a zero dim tensor containing one scalar
+        return torch.tensor(array, dtype=dtype)
+    elif isinstance(array, float):
+        return torch.tensor(array, dtype=dtype)
 
 
 def init_device(cfg: DictConfig):

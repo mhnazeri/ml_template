@@ -25,7 +25,7 @@ from model.net import CustomModel
 from model.dataloader import CustomDataset
 from utils.nn import check_grad_norm, init_weights, EarlyStopping, op_counter, init_optimizer, init_logger
 from utils.io import save_checkpoint, load_checkpoint
-from utils.helpers import get_conf, timeit, init_device
+from utils.helpers import get_conf, timeit, init_device, fix_seed
 
 
 class Learner:
@@ -54,10 +54,7 @@ class Learner:
         self.device = init_device(self.cfg)
         torch.set_float32_matmul_precision('high')
         # fix the seed for reproducibility
-        torch.random.manual_seed(self.cfg.train_params.seed)
-        torch.cuda.manual_seed(self.cfg.train_params.seed)
-        torch.cuda.manual_seed_all(self.cfg.train_params.seed)
-        np.random.seed(self.cfg.train_params.seed)
+        fix_seed(self.cfg.train_params.seed)
         # creating dataset interface and dataloader for trained data
         self.data, self.val_data = self.init_dataloader()
         # create model and initialize its weights and move them to the device

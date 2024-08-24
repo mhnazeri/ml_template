@@ -3,6 +3,7 @@
 export PROJECT_NAME=project_name  # add your project folder to python path
 export PYTHONPATH=$PYTHONPATH:$PROJECT_NAME
 export COMET_LOGGING_CONSOLE=info
+export CUBLAS_WORKSPACE_CONFIG=:4096:8 # adds 24M overhead to memory usage
 
 Help()
 {
