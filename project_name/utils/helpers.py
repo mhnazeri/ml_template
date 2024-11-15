@@ -52,9 +52,9 @@ def to_tensor(array: Any, dtype: torch.dtype = torch.float) -> torch.Tensor:
 
 def init_device(cfg: DictConfig):
     """Initializes the device
-    
+
     Args:
-        cfg: (DictConfig) the configuration    
+        cfg: (DictConfig) the configuration
     """
     print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - INITIALIZING the device!")
     is_cuda_available = torch.cuda.is_available()
@@ -66,15 +66,19 @@ def init_device(cfg: DictConfig):
 
     elif "cuda" in device:
         if is_cuda_available:
-            device_idx = device.split(":")[1]
-            if device_idx == "a":
-                print(
-                    f"Performing all the operations on CUDA; {torch.cuda.device_count()} devices."
-                )
-                cfg.dataloader.batch_size *= torch.cuda.device_count()
-                return torch.device(device.split(":")[0])
+            if ":" in device:
+                device_idx = device.split(":")[1]
+                if device_idx == "a":
+                    print(
+                        f"Performing all the operations on CUDA; {torch.cuda.device_count()} devices."
+                    )
+                    cfg.dataloader.batch_size *= torch.cuda.device_count()
+                    return torch.device(device.split(":")[0])
+                else:
+                    print(f"Performing all the operations on CUDA device {device_idx}.")
+                    return torch.device(device)
             else:
-                print(f"Performing all the operations on CUDA device {device_idx}.")
+                print(f"Performing all the operations on CUDA device.")
                 return torch.device(device)
         else:
             print("CUDA device is not available, falling back to CPU!")
@@ -166,41 +170,35 @@ def init_logger(cfg: DictConfig):
     return logger
 
 
-def timeit(fn):
+def timeit(get_value):
     """Calculate time taken by fn().
 
-    A function decorator to calculate the time a function needed for completion on GPU.
-    returns: the function result and the time taken
+    A method decorator to calculate the time a function needed for completion on GPU or CPU.
+    Args:
+        get_value: gets the device
+        fn: is the decorated function
+    Return:
+        the function result and the time taken
     """
-    # first, check if cuda is available
-    cuda = torch.cuda.is_available()
-    if cuda:
-
+    def decorator(fn):
         @functools.wraps(fn)
-        def wrapper_fn(*args, **kwargs):
-            start = torch.cuda.Event(enable_timing=True)
-            end = torch.cuda.Event(enable_timing=True)
-            # torch.cuda.synchronize()
-            # t1 = time()
-            start.record()
-            result = fn(*args, **kwargs)
-            end.record()
-            torch.cuda.synchronize()
-            # t2 = time()
-            # take = t2 - t1
-            return result, start.elapsed_time(end) / 1000
-
-    else:
-
-        @functools.wraps(fn)
-        def wrapper_fn(*args, **kwargs):
-            t1 = time()
-            result = fn(*args, **kwargs)
-            t2 = time()
-            take = t2 - t1
-            return result, take
-
-    return wrapper_fn
+        def wrapper_fn(self, *args, **kwargs):
+            if "cuda" in str(get_value(self)):
+                start = torch.cuda.Event(enable_timing=True)
+                end = torch.cuda.Event(enable_timing=True)
+                start.record()
+                result = fn(self, *args, **kwargs)
+                end.record()
+                torch.cuda.synchronize()
+                return result, start.elapsed_time(end) / 1000
+            else:
+                t1 = time()
+                result = fn(self, *args, **kwargs)
+                t2 = time()
+                take = t2 - t1
+                return result, take
+        return wrapper_fn
+    return decorator
 
 
 def setup_logger(name, log_file, level=logging.INFO):

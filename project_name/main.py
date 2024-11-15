@@ -4,6 +4,7 @@ from datetime import datetime
 import sys
 import json
 import argparse
+from operator import attrgetter
 
 try:
     sys.path.append(str(Path(".").resolve()))
@@ -185,7 +186,7 @@ class Learner:
         self.logger.log_metrics({"GFLOPS": macs[:-1], "#Params": params[:-1]})
         print(f"{datetime.now():%Y-%m-%d %H:%M:%S} - Training is DONE!")
 
-    @timeit
+    @timeit(attrgetter('device'))
     def forward_batch(self, data):
         """Forward pass of a batch"""
         self.model.train()
@@ -215,7 +216,7 @@ class Learner:
 
         return loss.detach().item(), grad_norm
 
-    @timeit
+    @timeit(attrgetter('device'))
     @torch.no_grad()
     def validate(self):
 
