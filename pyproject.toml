@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "project_name"
+description = "Project name, a one sentence description."
+readme = "README.md"
+version = "0.0.1"
+requires-python = ">= 3.10"
+maintainers = [
+  {name = "Mohammad Nazeri", email = "mnazerir@gmu.edu"}
+    ]
+authors = [
+  {name = "Mohammad Nazeri", email = "mnazerir@gmu.edu"},
+]
+keywords = ["ml", "dl"]
+
+[project.optional-dependencies]
+dev = [
+  "black",
+]
+
+[project.urls]
+Homepage = "https://example.com"
+Documentation = "https://readthedocs.org"
+Repository = "https://github.com/me/spam.git"
+Issues = "https://github.com/me/spam/issues"
+Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
+
+[tool.black]
+required-version = "23.10.0"
+line-length = 88
+target-version = ['py310']
