@@ -1,0 +1,41 @@
+[tools]
+python = "3.12"
+uv = "latest"
+
+[env]
+_.python.venv = { path = ".venv", create = true }
+COMET_LOGGING_CONSOLE = "info"
+
+[tasks.setup]
+description = "Install all dependencies (incl. dev) and git hooks"
+run = ["uv sync", "uv run pre-commit install"]
+
+[tasks.train]
+description = "Single-process training. Usage: mise run train -- --config configs/example.yaml key=value"
+run = "uv run python -m project_name.train"
+
+[tasks.train-multi]
+description = "Multi-GPU training on this node (DDP/FSDP via torchrun). Set NGPUS to limit GPUs."
+run = "uv run torchrun --standalone --nproc-per-node=${NGPUS:-gpu} -m project_name.train"
+
+[tasks.eval]
+description = "Evaluate a checkpoint. Usage: mise run eval -- --run runs/<name> [--ckpt step_00001000]"
+run = "uv run python -m project_name.evaluate"
+
+[tasks.test]
+description = "Run fast tests"
+run = "uv run pytest -m 'not slow'"
+
+[tasks.test-all]
+description = "Run all tests incl. multi-process distributed tests"
+run = "uv run pytest"
+
+[tasks.lint]
+run = ["uv run ruff check .", "uv run ruff format --check ."]
+
+[tasks.fmt]
+run = ["uv run ruff check --fix .", "uv run ruff format ."]
+
+[tasks.rename]
+description = "Rename the template package. Usage: mise run rename -- my_project"
+run = "uv run python scripts/rename_project.py"

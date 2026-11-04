@@ -1,4 +1,21 @@
-*.db
+# python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+
+# ml artifacts
+/runs/
+/data/
+/logs/
+.cometml-runs/
 *.pt
+*.pth
+*.tar
+*.safetensors
+*.db
 *.gz
-data/

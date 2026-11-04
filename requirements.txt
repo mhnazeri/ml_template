@@ -1,6 +1,0 @@
-comet-ml
-omegaconf
-tqdm
-diskcache
-rich
-icecream

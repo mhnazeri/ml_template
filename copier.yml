@@ -1,0 +1,32 @@
+# Create a new project from this template with Copier (https://copier.readthedocs.io):
+#
+#   uvx copier copy --trust gh:<you>/ml_template my_new_project
+#
+# Copier copies the repo as-is (it stays a runnable project, no Jinja templating)
+# and then runs scripts/rename_project.py with your answers.
+_min_copier_version: "9.0"
+_templates_suffix: .jinja  # no file in this repo uses it, so everything is copied verbatim
+_exclude:
+  - .git
+  - .venv
+  - runs
+  - data
+  - copier.yml
+  - "**/__pycache__"
+
+project_name:
+  type: str
+  help: Python package name (snake_case)
+  validator: >-
+    {% if not (project_name | regex_search('^[a-z_][a-z0-9_]*$')) %}
+    Must be a lowercase Python identifier, e.g. my_robot_policy
+    {% endif %}
+
+description:
+  type: str
+  help: One-sentence description
+  default: "Project name, a one sentence description."
+
+_tasks:
+  - command: ["python3", "scripts/rename_project.py", "{{ project_name }}", "--description", "{{ description }}"]
+  - command: ["git", "init", "-q"]

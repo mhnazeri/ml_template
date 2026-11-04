@@ -1,34 +1,50 @@
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "project_name"
+version = "0.1.0"
 description = "Project name, a one sentence description."
 readme = "README.md"
-version = "0.0.1"
-requires-python = ">= 3.10"
-maintainers = [
-  {name = "Mohammad Nazeri", email = "mnazerir@gmu.edu"}
-    ]
-authors = [
-  {name = "Mohammad Nazeri", email = "mnazerir@gmu.edu"},
+requires-python = ">=3.11"
+license = { file = "LICENSE.txt" }
+authors = [{ name = "Mohammad Nazeri", email = "mnazerir@gmu.edu" }]
+keywords = ["ml", "deep-learning", "robotics"]
+dependencies = [
+  "torch>=2.6",
+  "numpy>=1.26",
+  "omegaconf>=2.3",
+  "comet-ml>=3.47",
+  "safetensors>=0.4",
+  "pillow>=10",
+  "rich>=13",
 ]
-keywords = ["ml", "dl"]
 
-[project.optional-dependencies]
+[project.scripts]
+pn-train = "project_name.train:main"
+pn-eval = "project_name.evaluate:main"
+
+[dependency-groups]
 dev = [
-  "black",
+  "pytest>=8",
+  "ruff>=0.6",
+  "pre-commit>=3.7",
 ]
 
-[project.urls]
-Homepage = "https://example.com"
-Documentation = "https://readthedocs.org"
-Repository = "https://github.com/me/spam.git"
-Issues = "https://github.com/me/spam/issues"
-Changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.black]
-required-version = "23.10.0"
-line-length = 88
-target-version = ['py310']
+[tool.hatch.build.targets.wheel]
+packages = ["src/project_name"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+markers = ["slow: multi-process / longer tests (deselect with -m 'not slow')"]
+filterwarnings = ["ignore:torch.distributed is (disabled|unavailable):UserWarning"]

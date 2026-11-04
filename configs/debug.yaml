@@ -1,0 +1,37 @@
+# Tiny, fast, local-only run for checking the pipeline end to end (works on CPU).
+#   mise run train -- --config configs/debug.yaml
+defaults:
+  - example.yaml
+
+run:
+  prefix: debug
+  tags: [debug]
+
+data:
+  train:
+    num_samples: 512
+  val:
+    num_samples: 128
+
+trainer:
+  max_steps: 40
+  log_every: 5
+  precision: fp32
+
+scheduler:
+  warmup_steps: 5
+
+dataloader:
+  batch_size: 16
+  num_workers: 0
+
+val:
+  every: 20
+  quick_every: 10
+  quick_samples: 32
+
+checkpoint:
+  every: 20
+
+logger:
+  backend: none

@@ -1,0 +1,76 @@
+# Example: behaviour cloning on the synthetic multimodal robotics dataset.
+# Every key of the typed sections (run/trainer/optim/scheduler/dataloader/val/
+# checkpoint/logger) is documented in src/project_name/config.py.
+#
+#   mise run train -- --config configs/example.yaml
+#   mise run train -- --config configs/example.yaml optim.lr=1e-3 run.name=lr1e-3
+
+run:
+  prefix: bc-example
+  seed: 42
+  tags: [example, synthetic]
+
+task:
+  _target_: project_name.tasks.behavior_cloning.BehaviorCloningTask
+  success_radius: 0.1
+
+model:
+  _target_: project_name.models.policy.MultimodalPolicy
+  image_size: ${data.train.image_size}
+  horizon: ${data.train.horizon}
+  channels: [32, 64, 64]
+  dim: 256
+  dropout: 0.1
+
+data:
+  train:
+    _target_: project_name.data.synthetic.SyntheticRobotDataset
+    split: train
+    num_samples: 50000
+    image_size: 64
+    horizon: 8
+  val:
+    _target_: project_name.data.synthetic.SyntheticRobotDataset
+    split: val
+    num_samples: 2000
+    image_size: ${data.train.image_size}
+    horizon: ${data.train.horizon}
+
+trainer:
+  max_steps: 3000
+  grad_accum_steps: 1
+  grad_clip: 1.0
+  precision: bf16
+  log_every: 50
+  ema_decay: 0.999
+
+optim:
+  name: adamw
+  lr: 1e-3
+  weight_decay: 0.05
+
+scheduler:
+  name: cosine
+  warmup_steps: ${calc:${trainer.max_steps} // 20}
+  min_lr_ratio: 0.05
+
+dataloader:
+  batch_size: 128
+  num_workers: 4
+
+val:
+  every: 500
+  quick_every: 100
+  quick_samples: 256
+  max_samples: 1024
+  monitor: val/loss
+  mode: min
+
+checkpoint:
+  every: 1000
+  keep_last: 2
+
+logger:
+  backend: comet
+  project: ml-template-example
+  online: true
